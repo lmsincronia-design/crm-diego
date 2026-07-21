@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.db
+.env
+config.json
+node_modules/
+.vercel/
+*.egg-info/
+dist/
+build/

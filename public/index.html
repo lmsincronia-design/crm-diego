@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Diego - Repuestos Industriales</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; }
+.tab-active { background: #1e40af; color: white; }
+.tab-btn { transition: all 0.2s; }
+.tab-btn:hover { background: rgba(255,255,255,0.1); }
+.tab-active:hover { background: #1e3a8a; }
+.card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.stat-card { color: white; border-radius: 12px; padding: 1.5rem; }
+.sc-purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.sc-green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+.sc-orange { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.sc-blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.pipeline-col { min-height: 200px; background: #f8fafc; border-radius: 8px; }
+.deal-card { background: white; border-left: 4px solid #667eea; border-radius: 8px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }
+.deal-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal { background: white; border-radius: 12px; padding: 2rem; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-blue { background: #dbeafe; color: #1e40af; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-purple { background: #ede9fe; color: #5b21b6; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: #1e40af; color: white; padding: 12px 24px; border-radius: 8px; z-index: 100; animation: slideIn 0.3s; }
+@keyframes slideIn { from { transform: translateY(100px); opacity: 0; } }
+table { width: 100%; }
+th { text-align: left; padding: 12px; font-weight: 600; color: #64748b; border-bottom: 2px solid #e2e8f0; font-size: 0.85rem; text-transform: uppercase; }
+td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+tr:hover td { background: #f8fafc; }
+input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; width: 100%; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 3px rgba(30,64,175,0.1); }
+.btn { padding: 8px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+.btn-primary { background: #1e40af; color: white; }
+.btn-primary:hover { background: #1e3a8a; }
+.btn-secondary { background: #e2e8f0; color: #475569; }
+.btn-secondary:hover { background: #cbd5e1; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover { background: #dc2626; }
+.btn-success { background: #10b981; color: white; }
+.btn-success:hover { background: #059669; }
+.btn-apollo { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.btn-apollo:hover { background: linear-gradient(135deg, #5a67d8, #6b46c1); }
+.btn-sm { padding: 4px 12px; font-size: 0.85rem; }
+.apollo-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; transition: all 0.2s; }
+.apollo-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
+.apollo-card.selected { border-color: #667eea; background: #f5f3ff; }
+</style>
+</head>
+<body>
+
+<div class="flex h-screen">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-900 text-white flex flex-col" style="min-width:220px">
+    <div class="p-6 border-b border-gray-700">
+      <h1 class="text-xl font-bold">CRM Diego</h1>
+      <p class="text-gray-400 text-sm mt-1">Repuestos Industriales</p>
+    </div>
+    <nav class="flex-1 p-4 space-y-1" id="nav">
+      <button onclick="showTab('dashboard')" class="tab-btn w-full text-left px-4 py-3 rounded-lg tab-active" data-tab="dashboard">&#128202; Dashboard</button>
+      <button onclick="showTab('apollo')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="apollo">&#128640; Apollo.io</button>
+      <button onclick="showTab('empresas')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="empresas">&#127970; Empresas</button>
+      <button onclick="showTab('contactos')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="contactos">&#128101; Contactos</button>
+      <button onclick="showTab('pipeline')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="pipeline">&#128200; Pipeline</button>
+      <button onclick="showTab('scraping')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="scraping">&#128269; Scraping</button>
+      <button onclick="showTab('email')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="email">&#9993; Email</button>
+    </nav>
+  </aside>
+
+  <main class="flex-1 overflow-y-auto p-8" id="main">
+
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard" class="tab-content">
+      <h2 class="text-2xl font-bold mb-6">Dashboard</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="stats-cards"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card p-6"><h3 class="text-lg font-semibold mb-4">Pipeline por Etapa</h3><div id="pipeline-chart"></div></div>
+        <div class="card p-6"><h3 class="text-lg font-semibold mb-4">Contactos Recientes</h3><div id="recent-contacts"></div></div>
+      </div>
+    </div>
+
+    <!-- APOLLO.IO -->
+    <div id="tab-apollo" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h2 class="text-2xl font-bold">Apollo.io - Busqueda de Contactos B2B</h2>
+          <p class="text-gray-500 mt-1">Encuentra gerentes de compra, mantenimiento y abastecimiento en las empresas mas grandes de Chile</p>
+        </div>
+      </div>
+
+      <div class="card p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Empresa</label>
+            <input id="apollo-empresa" placeholder="Ej: CMPC, Arauco, CAP, Codelco">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Cargo</label>
+            <select id="apollo-cargo">
+              <option value="">Todos los cargos</option>
+              <option value="Gerente de Compras">Gerente de Compras</option>
+              <option value="Gerente de Mantenimiento">Gerente de Mantenimiento</option>
+              <option value="Gerente de Abastecimiento">Gerente de Abastecimiento</option>
+              <option value="Jefe de Compras">Jefe de Compras</option>
+              <option value="Jefe de Mantenimiento">Jefe de Mantenimiento</option>
+              <option value="Director de Operaciones">Director de Operaciones</option>
+              <option value="Gerente de Operaciones">Gerente de Operaciones</option>
+              <option value="Supply Chain Manager">Supply Chain Manager</option>
+              <option value="Procurement Manager">Procurement Manager</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Ubicacion</label>
+            <input id="apollo-ubicacion" value="Chile" placeholder="Chile, Santiago, etc.">
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="apolloBuscar()" class="btn btn-apollo">&#128640; Buscar en Apollo</button>
+          <button onclick="apolloImportarSeleccionados()" class="btn btn-success" id="btn-apollo-import" style="display:none">
+            Importar seleccionados al CRM
+          </button>
+        </div>
+      </div>
+
+      <div id="apollo-results"></div>
+    </div>
+
+    <!-- EMPRESAS -->
+    <div id="tab-empresas" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Empresas</h2>
+        <button onclick="modalEmpresa()" class="btn btn-primary">+ Nueva Empresa</button>
+      </div>
+      <div class="card p-4 mb-4"><input type="text" id="buscar-empresa" placeholder="Buscar por nombre, RUT o industria..." onkeyup="debounce(loadEmpresas, 300)()"></div>
+      <div class="card overflow-x-auto">
+        <table><thead><tr><th>Nombre</th><th>RUT</th><th>Industria</th><th>Ciudad</th><th>Fuente</th><th>Acciones</th></tr></thead>
+        <tbody id="tabla-empresas"></tbody></table>
+      </div>
+    </div>
+
+    <!-- CONTACTOS -->
+    <div id="tab-contactos" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Contactos</h2>
+        <button onclick="modalContacto()" class="btn btn-primary">+ Nuevo Contacto</button>
+      </div>
+      <div class="card p-4 mb-4"><input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()"></div>
+      <div class="card overflow-x-auto">
+        <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Acciones</th></tr></thead>
+        <tbody id="tabla-contactos"></tbody></table>
+      </div>
+    </div>
+
+    <!-- PIPELINE -->
+    <div id="tab-pipeline" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Pipeline de Ventas</h2>
+        <button onclick="modalDeal()" class="btn btn-primary">+ Nuevo Deal</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4" id="pipeline-board"></div>
+    </div>
+
+    <!-- SCRAPING -->
+    <div id="tab-scraping" class="tab-content hidden">
+      <h2 class="text-2xl font-bold mb-6">Scraping & Importacion</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold mb-4">Buscar en Mercado Publico</h3>
+          <div class="space-y-4">
+            <input type="text" id="scrape-keyword" placeholder="Ej: repuestos forestales, rodamientos...">
+            <button onclick="scrapeMercado()" class="btn btn-primary w-full">Buscar Licitaciones</button>
+          </div>
+          <div id="scrape-results" class="mt-4"></div>
+        </div>
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold mb-4">Scraping de Sitio Web</h3>
+          <div class="space-y-4">
+            <input type="text" id="scrape-url" placeholder="https://www.empresa.cl">
+            <button onclick="scrapeSitio()" class="btn btn-primary w-full">Extraer Contactos</button>
+          </div>
+          <div id="scrape-sitio-results" class="mt-4"></div>
+        </div>
+      </div>
+      <div class="card p-6 mt-6">
+        <h3 class="text-lg font-semibold mb-4">Importar CSV / Excel</h3>
+        <p class="text-gray-500 text-sm mb-4">Columnas: empresa, nombre, apellido, cargo, email, telefono, rut, industria</p>
+        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" class="mb-4">
+        <button onclick="importarArchivo()" class="btn btn-success">Importar</button>
+        <div id="import-result" class="mt-4"></div>
+      </div>
+      <div class="card p-6 mt-6">
+        <h3 class="text-lg font-semibold mb-4">Historial</h3>
+        <table><thead><tr><th>Fuente</th><th>Query</th><th>Resultados</th><th>Fecha</th></tr></thead>
+        <tbody id="scraping-log"></tbody></table>
+      </div>
+    </div>
+
+    <!-- EMAIL -->
+    <div id="tab-email" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Campanas de Email</h2>
+        <button onclick="modalCampana()" class="btn btn-primary">+ Nueva Campana</button>
+      </div>
+      <div id="lista-campanas" class="space-y-4"></div>
+    </div>
+
+  </main>
+</div>
+
+<div id="modal-container"></div>
+<div id="toast-container"></div>
+
+<script>
+let _debounceTimers = {};
+let _apolloResults = [];
+
+function debounce(fn, ms) {
+  return function() { clearTimeout(_debounceTimers[fn.name]); _debounceTimers[fn.name] = setTimeout(fn, ms); };
+}
+function toast(msg, dur = 3000) {
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), dur);
+}
+async function api(path, opts = {}) {
+  const cfg = { headers: {'Content-Type':'application/json'}, ...opts };
+  if (cfg.body && typeof cfg.body === 'object' && !(cfg.body instanceof FormData)) cfg.body = JSON.stringify(cfg.body);
+  if (cfg.body instanceof FormData) delete cfg.headers['Content-Type'];
+  return (await fetch(path, cfg)).json();
+}
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(el => { el.classList.remove('tab-active'); if(el.dataset.tab === name) el.classList.add('tab-active'); });
+  const loaders = { dashboard: loadDashboard, empresas: loadEmpresas, contactos: loadContactos, pipeline: loadPipeline, email: loadCampanas, scraping: loadScrapingLog };
+  if (loaders[name]) loaders[name]();
+}
+function showModal(html) { document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
+function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
+
+// === DASHBOARD ===
+async function loadDashboard() {
+  const d = await api('/api/dashboard');
+  document.getElementById('stats-cards').innerHTML = `
+    <div class="stat-card sc-purple"><div class="text-3xl font-bold">${d.empresas}</div><div class="opacity-80">Empresas</div></div>
+    <div class="stat-card sc-green"><div class="text-3xl font-bold">${d.contactos}</div><div class="opacity-80">Contactos</div></div>
+    <div class="stat-card sc-orange"><div class="text-3xl font-bold">${d.deals}</div><div class="opacity-80">Deals</div></div>
+    <div class="stat-card sc-blue"><div class="text-3xl font-bold">$${(d.valor_total||0).toLocaleString()}</div><div class="opacity-80">Valor Pipeline</div></div>`;
+  const etapas = ['prospecto','contactado','propuesta','negociacion','cerrado'];
+  const pd = {}; etapas.forEach(e => pd[e] = {cantidad:0, valor:0}); (d.pipeline||[]).forEach(p => pd[p.etapa] = p);
+  document.getElementById('pipeline-chart').innerHTML = etapas.map(e => `
+    <div class="flex items-center justify-between py-2 border-b"><span class="capitalize font-medium">${e}</span>
+    <span><span class="badge badge-blue">${pd[e].cantidad}</span><span class="text-gray-500 text-sm ml-2">$${(pd[e].valor||0).toLocaleString()}</span></span></div>`).join('');
+  document.getElementById('recent-contacts').innerHTML = (d.contactos_recientes||[]).map(c => `
+    <div class="flex justify-between py-2 border-b"><div><span class="font-medium">${c.nombre} ${c.apellido||''}</span> <span class="text-gray-400 text-sm">${c.cargo||''}</span></div>
+    <span class="text-gray-400 text-sm">${c.empresa_nombre||''}</span></div>`).join('') || '<p class="text-gray-400">Sin contactos aun</p>';
+}
+
+// === APOLLO.IO ===
+async function apolloBuscar() {
+  const empresa = document.getElementById('apollo-empresa').value;
+  const cargo = document.getElementById('apollo-cargo').value;
+  const ubicacion = document.getElementById('apollo-ubicacion').value;
+  document.getElementById('apollo-results').innerHTML = '<div class="text-center py-8"><div class="text-purple-600 text-lg font-medium">Buscando en Apollo.io...</div></div>';
+  const data = await api('/api/apollo/buscar', { method:'POST', body: { empresa, cargo, ubicacion } });
+  if (data.error) {
+    document.getElementById('apollo-results').innerHTML = `<div class="card p-6 text-center"><p class="text-red-500">${data.error}</p></div>`;
+    return;
+  }
+  _apolloResults = data.people || [];
+  if (!_apolloResults.length) {
+    document.getElementById('apollo-results').innerHTML = '<div class="card p-6 text-center text-gray-400">Sin resultados. Prueba con otros filtros.</div>';
+    document.getElementById('btn-apollo-import').style.display = 'none';
+    return;
+  }
+  document.getElementById('btn-apollo-import').style.display = 'inline-block';
+  document.getElementById('apollo-results').innerHTML = `
+    <div class="flex justify-between items-center mb-4">
+      <p class="text-gray-600"><strong>${data.total}</strong> contactos encontrados</p>
+      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" onchange="apolloToggleAll(this.checked)" checked> Seleccionar todos</label>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${_apolloResults.map((p, i) => `
+        <div class="apollo-card selected" id="apollo-card-${i}" onclick="apolloToggle(${i})">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm flex-shrink-0">
+              ${(p.nombre||'?')[0]}${(p.apellido||'?')[0]}
+            </div>
+            <div class="min-w-0">
+              <div class="font-semibold text-sm">${p.nombre} ${p.apellido}</div>
+              <div class="text-xs text-gray-500 truncate">${p.cargo || 'Sin cargo'}</div>
+              <div class="text-xs text-purple-600 font-medium mt-1">${p.empresa || 'Sin empresa'}</div>
+              ${p.email ? `<div class="text-xs text-gray-400 mt-1">${p.email}</div>` : '<div class="text-xs text-red-400 mt-1">Sin email</div>'}
+              ${p.telefono ? `<div class="text-xs text-gray-400">${p.telefono}</div>` : ''}
+              <div class="flex gap-1 mt-2">
+                ${p.linkedin_url ? `<span class="badge badge-blue">LinkedIn</span>` : ''}
+                ${p.email ? `<span class="badge badge-green">Email</span>` : ''}
+                ${p.telefono ? `<span class="badge badge-yellow">Tel</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <input type="checkbox" class="apollo-check" data-idx="${i}" checked style="position:absolute;opacity:0">
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+function apolloToggle(idx) {
+  const card = document.getElementById('apollo-card-' + idx);
+  const check = card.querySelector('.apollo-check');
+  check.checked = !check.checked;
+  card.classList.toggle('selected', check.checked);
+}
+
+function apolloToggleAll(checked) {
+  document.querySelectorAll('.apollo-check').forEach((el, i) => {
+    el.checked = checked;
+    document.getElementById('apollo-card-' + i).classList.toggle('selected', checked);
+  });
+}
+
+async function apolloImportarSeleccionados() {
+  const checks = document.querySelectorAll('.apollo-check:checked');
+  const selected = [...checks].map(el => _apolloResults[el.dataset.idx]);
+  if (!selected.length) { toast('Selecciona al menos un contacto'); return; }
+  const data = await api('/api/apollo/importar', { method:'POST', body: { contactos: selected } });
+  toast(`Importados: ${data.contactos_creados} contactos, ${data.empresas_creadas} empresas`);
+  document.getElementById('btn-apollo-import').style.display = 'none';
+  document.getElementById('apollo-results').innerHTML = `
+    <div class="card p-6 text-center">
+      <div class="text-green-600 text-4xl mb-2">&#10003;</div>
+      <p class="font-semibold text-lg">${data.contactos_creados} contactos y ${data.empresas_creadas} empresas importados</p>
+      <p class="text-gray-500 mt-1">Ve a Contactos o Pipeline para gestionarlos</p>
+    </div>`;
+}
+
+// === EMPRESAS ===
+async function loadEmpresas() {
+  const buscar = document.getElementById('buscar-empresa')?.value || '';
+  const data = await api('/api/empresas?buscar=' + encodeURIComponent(buscar));
+  document.getElementById('tabla-empresas').innerHTML = data.map(e => `
+    <tr><td class="font-medium">${e.nombre}</td><td>${e.rut||'-'}</td><td>${e.industria||'-'}</td><td>${e.ciudad||'-'}</td>
+    <td><span class="badge ${e.fuente==='apollo'?'badge-purple':'badge-blue'}">${e.fuente||'-'}</span></td>
+    <td><button onclick="modalEmpresa(${e.id})" class="btn btn-secondary btn-sm">Editar</button>
+    <button onclick="eliminarEmpresa(${e.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
+  `).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-8">Sin empresas</td></tr>';
+}
+async function modalEmpresa(id) {
+  let e = {nombre:'',rut:'',industria:'',tamano:'',sitio_web:'',direccion:'',ciudad:'',notas:''};
+  if (id) e = await api('/api/empresas/' + id);
+  showModal(`<h3 class="text-xl font-bold mb-4">${id?'Editar':'Nueva'} Empresa</h3>
+    <div class="grid grid-cols-2 gap-4">
+      <div><label class="block text-sm font-medium mb-1">Nombre *</label><input id="emp-nombre" value="${e.nombre||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">RUT</label><input id="emp-rut" value="${e.rut||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Industria</label><input id="emp-industria" value="${e.industria||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Ciudad</label><input id="emp-ciudad" value="${e.ciudad||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Sitio Web</label><input id="emp-web" value="${e.sitio_web||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Tamano</label><select id="emp-tamano"><option value="">-</option><option ${e.tamano==='grande'?'selected':''}>grande</option><option ${e.tamano==='mediana'?'selected':''}>mediana</option><option ${e.tamano==='pequena'?'selected':''}>pequena</option></select></div>
+      <div class="col-span-2"><label class="block text-sm font-medium mb-1">Notas</label><textarea id="emp-notas" rows="2">${e.notas||''}</textarea></div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarEmpresa(${id||'null'})" class="btn btn-primary">Guardar</button></div>`);
+}
+async function guardarEmpresa(id) {
+  const d = {nombre:document.getElementById('emp-nombre').value, rut:document.getElementById('emp-rut').value, industria:document.getElementById('emp-industria').value,
+    ciudad:document.getElementById('emp-ciudad').value, sitio_web:document.getElementById('emp-web').value, tamano:document.getElementById('emp-tamano').value, notas:document.getElementById('emp-notas').value};
+  if (!d.nombre) { toast('Nombre requerido'); return; }
+  if (id) await api('/api/empresas/'+id, {method:'PUT', body:d}); else await api('/api/empresas', {method:'POST', body:d});
+  closeModal(); loadEmpresas(); toast(id?'Actualizada':'Creada');
+}
+async function eliminarEmpresa(id) { if (!confirm('Eliminar?')) return; await api('/api/empresas/'+id, {method:'DELETE'}); loadEmpresas(); toast('Eliminada'); }
+
+// === CONTACTOS ===
+async function loadContactos() {
+  const buscar = document.getElementById('buscar-contacto')?.value || '';
+  const data = await api('/api/contactos?buscar=' + encodeURIComponent(buscar));
+  document.getElementById('tabla-contactos').innerHTML = data.map(c => `
+    <tr><td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
+    <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${c.fuente||'-'}</span></td>
+    <td><button onclick="modalContacto(${c.id})" class="btn btn-secondary btn-sm">Editar</button>
+    <button onclick="eliminarContacto(${c.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
+  `).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-8">Sin contactos</td></tr>';
+}
+async function modalContacto(id) {
+  let c = {nombre:'',apellido:'',cargo:'',email:'',telefono:'',linkedin_url:'',empresa_id:'',notas:''};
+  if (id) c = await api('/api/contactos/' + id);
+  const empresas = await api('/api/empresas');
+  showModal(`<h3 class="text-xl font-bold mb-4">${id?'Editar':'Nuevo'} Contacto</h3>
+    <div class="grid grid-cols-2 gap-4">
+      <div><label class="block text-sm font-medium mb-1">Nombre *</label><input id="con-nombre" value="${c.nombre||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Apellido</label><input id="con-apellido" value="${c.apellido||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Cargo</label><input id="con-cargo" value="${c.cargo||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Email</label><input id="con-email" type="email" value="${c.email||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">Telefono</label><input id="con-tel" value="${c.telefono||''}"></div>
+      <div><label class="block text-sm font-medium mb-1">LinkedIn</label><input id="con-linkedin" value="${c.linkedin_url||''}"></div>
+      <div class="col-span-2"><label class="block text-sm font-medium mb-1">Empresa</label>
+        <select id="con-empresa"><option value="">Sin empresa</option>${empresas.map(e=>`<option value="${e.id}" ${e.id==c.empresa_id?'selected':''}>${e.nombre}</option>`).join('')}</select></div>
+      <div class="col-span-2"><label class="block text-sm font-medium mb-1">Notas</label><textarea id="con-notas" rows="2">${c.notas||''}</textarea></div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarContacto(${id||'null'})" class="btn btn-primary">Guardar</button></div>`);
+}
+async function guardarContacto(id) {
+  const d = {nombre:document.getElementById('con-nombre').value, apellido:document.getElementById('con-apellido').value, cargo:document.getElementById('con-cargo').value,
+    email:document.getElementById('con-email').value, telefono:document.getElementById('con-tel').value, linkedin_url:document.getElementById('con-linkedin').value,
+    empresa_id:document.getElementById('con-empresa').value||null, notas:document.getElementById('con-notas').value};
+  if (!d.nombre) { toast('Nombre requerido'); return; }
+  if (id) await api('/api/contactos/'+id, {method:'PUT', body:d}); else await api('/api/contactos', {method:'POST', body:d});
+  closeModal(); loadContactos(); toast(id?'Actualizado':'Creado');
+}
+async function eliminarContacto(id) { if (!confirm('Eliminar?')) return; await api('/api/contactos/'+id, {method:'DELETE'}); loadContactos(); toast('Eliminado'); }
+
+// === PIPELINE ===
+const ETAPAS = ['prospecto','contactado','propuesta','negociacion','cerrado'];
+const ETAPA_COLORS = {prospecto:'#94a3b8',contactado:'#60a5fa',propuesta:'#fbbf24',negociacion:'#f97316',cerrado:'#10b981'};
+async function loadPipeline() {
+  const deals = await api('/api/pipeline');
+  document.getElementById('pipeline-board').innerHTML = ETAPAS.map(etapa => {
+    const ed = deals.filter(d => d.etapa === etapa); const total = ed.reduce((s,d) => s+(d.valor_estimado||0), 0);
+    return `<div class="pipeline-col p-4"><div class="flex justify-between items-center mb-3"><h4 class="font-bold capitalize">${etapa}</h4><span class="badge badge-blue">${ed.length}</span></div>
+      <p class="text-sm text-gray-500 mb-3">$${total.toLocaleString()}</p>
+      ${ed.map(d => `<div class="deal-card" style="border-color:${ETAPA_COLORS[etapa]}" onclick="modalDeal(${d.id})">
+        <div class="font-medium text-sm">${d.empresa_nombre||'Sin empresa'}</div><div class="text-xs text-gray-500">${d.contacto_nombre||''} ${d.contacto_apellido||''}</div>
+        <div class="text-xs text-gray-400 mt-1">${d.producto||''}</div><div class="font-bold text-sm mt-1">$${(d.valor_estimado||0).toLocaleString()}</div></div>`).join('')}</div>`;
+  }).join('');
+}
+async function modalDeal(id) {
+  let d = {contacto_id:'',empresa_id:'',etapa:'prospecto',valor_estimado:'',producto:'',notas:''};
+  if (id) { const deals = await api('/api/pipeline'); d = deals.find(x=>x.id===id)||d; }
+  const empresas = await api('/api/empresas'); const contactos = await api('/api/contactos');
+  showModal(`<h3 class="text-xl font-bold mb-4">${id?'Editar':'Nuevo'} Deal</h3>
+    <div class="grid grid-cols-2 gap-4">
+      <div><label class="block text-sm font-medium mb-1">Empresa</label><select id="deal-empresa"><option value="">-</option>${empresas.map(e=>`<option value="${e.id}" ${e.id==d.empresa_id?'selected':''}>${e.nombre}</option>`).join('')}</select></div>
+      <div><label class="block text-sm font-medium mb-1">Contacto</label><select id="deal-contacto"><option value="">-</option>${contactos.map(c=>`<option value="${c.id}" ${c.id==d.contacto_id?'selected':''}>${c.nombre} ${c.apellido||''}</option>`).join('')}</select></div>
+      <div><label class="block text-sm font-medium mb-1">Etapa</label><select id="deal-etapa">${ETAPAS.map(e=>`<option value="${e}" ${e===d.etapa?'selected':''}>${e}</option>`).join('')}</select></div>
+      <div><label class="block text-sm font-medium mb-1">Valor (USD)</label><input id="deal-valor" type="number" value="${d.valor_estimado||''}"></div>
+      <div class="col-span-2"><label class="block text-sm font-medium mb-1">Producto</label><input id="deal-producto" value="${d.producto||''}" placeholder="Rodamientos SKF, Filtros Donaldson..."></div>
+      <div class="col-span-2"><label class="block text-sm font-medium mb-1">Notas</label><textarea id="deal-notas" rows="2">${d.notas||''}</textarea></div>
+    </div>
+    <div class="flex justify-between mt-6">
+      <div>${id?`<button onclick="eliminarDeal(${id})" class="btn btn-danger">Eliminar</button>`:''}</div>
+      <div class="flex gap-3"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarDeal(${id||'null'})" class="btn btn-primary">Guardar</button></div></div>`);
+}
+async function guardarDeal(id) {
+  const d = {empresa_id:document.getElementById('deal-empresa').value||null, contacto_id:document.getElementById('deal-contacto').value||null,
+    etapa:document.getElementById('deal-etapa').value, valor_estimado:parseFloat(document.getElementById('deal-valor').value)||0,
+    producto:document.getElementById('deal-producto').value, notas:document.getElementById('deal-notas').value};
+  if (id) await api('/api/pipeline/'+id, {method:'PUT', body:d}); else await api('/api/pipeline', {method:'POST', body:d});
+  closeModal(); loadPipeline(); toast(id?'Actualizado':'Creado');
+}
+async function eliminarDeal(id) { if (!confirm('Eliminar?')) return; await api('/api/pipeline/'+id, {method:'DELETE'}); closeModal(); loadPipeline(); toast('Eliminado'); }
+
+// === SCRAPING ===
+async function scrapeMercado() {
+  const kw = document.getElementById('scrape-keyword').value;
+  if (!kw) { toast('Ingresa busqueda'); return; }
+  document.getElementById('scrape-results').innerHTML = '<p class="text-blue-600">Buscando...</p>';
+  const data = await api('/api/scraping/mercadopublico', {method:'POST', body:{keyword:kw}});
+  if (data.resultados?.length) {
+    document.getElementById('scrape-results').innerHTML = `<p class="text-green-600 mb-2">${data.total} resultados</p>
+      ${data.resultados.slice(0,20).map(r=>`<div class="border-b py-2"><div class="font-medium text-sm">${r.nombre}</div><div class="text-xs text-gray-500">${r.organismo} | ${r.estado}</div></div>`).join('')}`;
+  } else { document.getElementById('scrape-results').innerHTML = '<p class="text-gray-400">Sin resultados</p>'; }
+  loadScrapingLog();
+}
+async function scrapeSitio() {
+  const url = document.getElementById('scrape-url').value;
+  if (!url) { toast('Ingresa URL'); return; }
+  document.getElementById('scrape-sitio-results').innerHTML = '<p class="text-blue-600">Extrayendo...</p>';
+  const data = await api('/api/scraping/sitio', {method:'POST', body:{url}});
+  document.getElementById('scrape-sitio-results').innerHTML = `<div class="space-y-2 mt-2">
+    <div><strong>Emails:</strong> ${(data.emails||[]).join(', ')||'No encontrados'}</div>
+    <div><strong>Telefonos:</strong> ${(data.telefonos||[]).join(', ')||'No encontrados'}</div>
+    <div><strong>Direccion:</strong> ${data.direccion||'No encontrada'}</div></div>`;
+}
+async function importarArchivo() {
+  const input = document.getElementById('import-file');
+  if (!input.files.length) { toast('Selecciona archivo'); return; }
+  const fd = new FormData(); fd.append('file', input.files[0]);
+  document.getElementById('import-result').innerHTML = '<p class="text-blue-600">Importando...</p>';
+  const data = await (await fetch('/api/importar/csv', {method:'POST', body:fd})).json();
+  document.getElementById('import-result').innerHTML = `<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+    <p class="font-medium text-green-800">Importacion completada</p>
+    <p class="text-sm text-green-600">${data.empresas_creadas} empresas y ${data.contactos_creados} contactos</p></div>`;
+  loadScrapingLog();
+}
+async function loadScrapingLog() {
+  const data = await api('/api/scraping/log');
+  document.getElementById('scraping-log').innerHTML = data.map(l => `
+    <tr><td><span class="badge ${l.fuente==='apollo'?'badge-purple':'badge-blue'}">${l.fuente}</span></td><td>${l.query||'-'}</td><td>${l.resultados}</td><td>${l.created_at||''}</td></tr>
+  `).join('') || '<tr><td colspan="4" class="text-center text-gray-400 py-4">Sin historial</td></tr>';
+}
+
+// === EMAIL ===
+async function loadCampanas() {
+  const data = await api('/api/campanas');
+  document.getElementById('lista-campanas').innerHTML = data.map(c => `
+    <div class="card p-6"><div class="flex justify-between items-start">
+      <div><h4 class="font-bold text-lg">${c.nombre}</h4><p class="text-gray-500 text-sm">Asunto: ${c.asunto}</p>
+        <div class="flex gap-3 mt-2"><span class="badge badge-blue">${c.total_emails||0} dest.</span><span class="badge badge-green">${c.enviados||0} enviados</span></div></div>
+      <div class="flex gap-2"><button onclick="verCampana(${c.id})" class="btn btn-secondary btn-sm">Ver</button>
+      <button onclick="enviarCampana(${c.id})" class="btn btn-success btn-sm">Enviar</button></div></div></div>
+  `).join('') || '<div class="card p-8 text-center text-gray-400">Sin campanas</div>';
+}
+async function modalCampana() {
+  const contactos = await api('/api/contactos');
+  showModal(`<h3 class="text-xl font-bold mb-4">Nueva Campana</h3>
+    <div class="space-y-4">
+      <div><label class="block text-sm font-medium mb-1">Nombre</label><input id="camp-nombre" placeholder="Prospeccion Q3 2026"></div>
+      <div><label class="block text-sm font-medium mb-1">Asunto</label><input id="camp-asunto" placeholder="Usa {{nombre}}, {{empresa}}"></div>
+      <div><label class="block text-sm font-medium mb-1">Cuerpo (HTML)</label>
+        <textarea id="camp-cuerpo" rows="8" placeholder="Estimado/a {{nombre}},&#10;&#10;Variables: {{nombre}}, {{apellido}}, {{cargo}}, {{empresa}}"></textarea></div>
+      <div><label class="block text-sm font-medium mb-1">Destinatarios</label>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid #d1d5db;border-radius:8px;padding:8px">
+          ${contactos.filter(c=>c.email).map(c=>`<label class="flex items-center gap-2 py-1"><input type="checkbox" class="camp-dest" value="${c.id}"> ${c.nombre} ${c.apellido||''} (${c.email})</label>`).join('')||'<p class="text-gray-400">No hay contactos con email</p>'}
+        </div></div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarCampana()" class="btn btn-primary">Crear</button></div>`);
+}
+async function guardarCampana() {
+  const nombre = document.getElementById('camp-nombre').value, asunto = document.getElementById('camp-asunto').value, cuerpo = document.getElementById('camp-cuerpo').value;
+  if (!nombre||!asunto||!cuerpo) { toast('Completa todos los campos'); return; }
+  const ids = [...document.querySelectorAll('.camp-dest:checked')].map(el=>parseInt(el.value));
+  const res = await api('/api/campanas', {method:'POST', body:{nombre, asunto, cuerpo}});
+  if (ids.length) await api(`/api/campanas/${res.id}/destinatarios`, {method:'POST', body:{contacto_ids:ids}});
+  closeModal(); loadCampanas(); toast('Campana creada');
+}
+async function verCampana(id) {
+  const c = await api('/api/campanas/'+id);
+  showModal(`<h3 class="text-xl font-bold mb-4">${c.nombre}</h3>
+    <div class="bg-gray-50 p-4 rounded-lg mb-4"><p class="font-medium">Asunto: ${c.asunto}</p><div class="mt-2 text-sm whitespace-pre-wrap">${c.cuerpo}</div></div>
+    <h4 class="font-semibold mb-2">Destinatarios (${(c.destinatarios||[]).length})</h4>
+    <div style="max-height:300px;overflow-y:auto"><table><thead><tr><th>Nombre</th><th>Email</th><th>Estado</th></tr></thead><tbody>
+      ${(c.destinatarios||[]).map(d=>`<tr><td>${d.nombre} ${d.apellido||''}</td><td>${d.email_destino}</td>
+        <td><span class="badge ${d.estado==='enviado'?'badge-green':d.estado==='error'?'badge-red':'badge-yellow'}">${d.estado}</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="flex justify-end mt-4"><button onclick="closeModal()" class="btn btn-secondary">Cerrar</button></div>`);
+}
+async function enviarCampana(id) {
+  if (!confirm('Enviar emails pendientes?')) return;
+  toast('Enviando...'); const res = await api('/api/campanas/'+id+'/enviar', {method:'POST'});
+  toast(`Enviados: ${res.enviados}, Errores: ${res.errores}`); loadCampanas();
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

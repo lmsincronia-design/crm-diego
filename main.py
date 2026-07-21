@@ -1,0 +1,194 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, UploadFile, File
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+import database as db
+import scraper
+import emailer
+
+app = FastAPI(title="CRM Diego - Repuestos Industriales")
+
+PUBLIC_DIR = Path(__file__).parent / "public"
+
+
+@app.on_event("startup")
+def startup():
+    db.init_db()
+    PUBLIC_DIR.mkdir(exist_ok=True)
+
+
+# --- DASHBOARD ---
+
+@app.get("/api/dashboard")
+def get_dashboard():
+    return db.dashboard_stats()
+
+
+# --- EMPRESAS ---
+
+@app.get("/api/empresas")
+def list_empresas(buscar: str = "", limit: int = 100, offset: int = 0):
+    return db.listar_empresas(buscar, limit, offset)
+
+@app.post("/api/empresas")
+def create_empresa(data: dict):
+    return {"id": db.crear_empresa(data)}
+
+@app.get("/api/empresas/{id}")
+def get_empresa(id: int):
+    return db.obtener_empresa(id) or {"error": "No encontrada"}
+
+@app.put("/api/empresas/{id}")
+def update_empresa(id: int, data: dict):
+    db.actualizar_empresa(id, data)
+    return {"ok": True}
+
+@app.delete("/api/empresas/{id}")
+def delete_empresa(id: int):
+    db.eliminar_empresa(id)
+    return {"ok": True}
+
+
+# --- CONTACTOS ---
+
+@app.get("/api/contactos")
+def list_contactos(buscar: str = "", empresa_id: int = None, limit: int = 100, offset: int = 0):
+    return db.listar_contactos(buscar, empresa_id, limit, offset)
+
+@app.post("/api/contactos")
+def create_contacto(data: dict):
+    return {"id": db.crear_contacto(data)}
+
+@app.get("/api/contactos/{id}")
+def get_contacto(id: int):
+    return db.obtener_contacto(id) or {"error": "No encontrado"}
+
+@app.put("/api/contactos/{id}")
+def update_contacto(id: int, data: dict):
+    db.actualizar_contacto(id, data)
+    return {"ok": True}
+
+@app.delete("/api/contactos/{id}")
+def delete_contacto(id: int):
+    db.eliminar_contacto(id)
+    return {"ok": True}
+
+
+# --- PIPELINE ---
+
+@app.get("/api/pipeline")
+def list_pipeline(etapa: str = None):
+    return db.listar_pipeline(etapa)
+
+@app.get("/api/pipeline/stats")
+def pipeline_stats():
+    return db.stats_pipeline()
+
+@app.post("/api/pipeline")
+def create_deal(data: dict):
+    return {"id": db.crear_deal(data)}
+
+@app.put("/api/pipeline/{id}")
+def update_deal(id: int, data: dict):
+    db.actualizar_deal(id, data)
+    return {"ok": True}
+
+@app.delete("/api/pipeline/{id}")
+def delete_deal(id: int):
+    db.eliminar_deal(id)
+    return {"ok": True}
+
+
+# --- CAMPANAS EMAIL ---
+
+@app.get("/api/campanas")
+def list_campanas():
+    return db.listar_campanas()
+
+@app.post("/api/campanas")
+def create_campana(data: dict):
+    return {"id": db.crear_campana(data)}
+
+@app.get("/api/campanas/{id}")
+def get_campana(id: int):
+    campana = db.obtener_campana(id)
+    if not campana:
+        return {"error": "No encontrada"}
+    campana["destinatarios"] = db.listar_destinatarios(id)
+    return campana
+
+@app.post("/api/campanas/{id}/destinatarios")
+def add_destinatarios(id: int, data: dict):
+    db.agregar_destinatarios(id, data.get("contacto_ids", []))
+    return {"ok": True}
+
+@app.post("/api/campanas/{id}/enviar")
+def send_campana(id: int):
+    return emailer.enviar_campana(id)
+
+
+# --- APOLLO.IO ---
+
+@app.post("/api/apollo/buscar")
+async def apollo_search(data: dict):
+    return await scraper.buscar_apollo(
+        empresa=data.get("empresa", ""),
+        cargo=data.get("cargo", ""),
+        ubicacion=data.get("ubicacion", "Chile"),
+        page=data.get("page", 1),
+        per_page=data.get("per_page", 25),
+    )
+
+@app.post("/api/apollo/importar")
+async def apollo_import(data: dict):
+    contactos = data.get("contactos", [])
+    return await scraper.importar_apollo_al_crm(contactos)
+
+
+# --- SCRAPING ---
+
+@app.post("/api/scraping/mercadopublico")
+async def scrape_mercadopublico(data: dict):
+    keyword = data.get("keyword", "")
+    if not keyword:
+        return {"error": "Falta keyword"}
+    resultados = await scraper.buscar_mercadopublico(keyword)
+    return {"resultados": resultados, "total": len(resultados)}
+
+@app.post("/api/scraping/sitio")
+async def scrape_sitio(data: dict):
+    url = data.get("url", "")
+    if not url:
+        return {"error": "Falta URL"}
+    if not url.startswith("http"):
+        url = "https://" + url
+    return await scraper.scrape_sitio_empresa(url)
+
+@app.post("/api/importar/csv")
+async def importar_csv(file: UploadFile = File(...)):
+    contenido = await file.read()
+    if file.filename and file.filename.endswith((".xlsx", ".xls")):
+        return scraper.importar_excel(contenido, f"excel:{file.filename}")
+    return scraper.importar_csv(contenido, f"csv:{file.filename}")
+
+@app.get("/api/scraping/log")
+def scraping_log():
+    return db.listar_scraping_log()
+
+
+# --- STATIC FILES ---
+
+if PUBLIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(PUBLIC_DIR)), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse(str(PUBLIC_DIR / "index.html"))
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
