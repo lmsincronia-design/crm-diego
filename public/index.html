@@ -64,7 +64,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
     </div>
     <nav class="flex-1 p-4 space-y-1" id="nav">
       <button onclick="showTab('dashboard')" class="tab-btn w-full text-left px-4 py-3 rounded-lg tab-active" data-tab="dashboard">&#128202; Dashboard</button>
-      <button onclick="showTab('apollo')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="apollo">&#128640; Apollo.io</button>
+      <button onclick="showTab('prospeccion')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="prospeccion">&#129302; Prospeccion</button>
+      <button onclick="showTab('hunter')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="hunter">&#128640; Hunter.io</button>
       <button onclick="showTab('empresas')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="empresas">&#127970; Empresas</button>
       <button onclick="showTab('contactos')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="contactos">&#128101; Contactos</button>
       <button onclick="showTab('pipeline')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="pipeline">&#128200; Pipeline</button>
@@ -85,50 +86,78 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
       </div>
     </div>
 
-    <!-- APOLLO.IO -->
-    <div id="tab-apollo" class="tab-content hidden">
+    <!-- PROSPECCION AUTOMATICA -->
+    <div id="tab-prospeccion" class="tab-content hidden">
       <div class="flex justify-between items-center mb-6">
         <div>
-          <h2 class="text-2xl font-bold">Apollo.io - Busqueda de Contactos B2B</h2>
-          <p class="text-gray-500 mt-1">Encuentra gerentes de compra, mantenimiento y abastecimiento en las empresas mas grandes de Chile</p>
+          <h2 class="text-2xl font-bold">Prospeccion Automatica</h2>
+          <p class="text-gray-500 mt-1">Configura empresas y keywords. El sistema busca contactos, deduplica y filtra con IA.</p>
+        </div>
+        <button onclick="ejecutarProspeccion()" class="btn btn-apollo" id="btn-prospectar">&#9889; Ejecutar Ahora</button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="card p-6">
+          <h3 class="font-semibold mb-3">Empresas Target</h3>
+          <p class="text-gray-400 text-xs mb-2">Una por linea: nombre | dominio (ej: CMPC | cmpc.cl)</p>
+          <textarea id="prospeccion-empresas" rows="8" class="w-full bg-gray-50 border rounded-lg p-3 text-sm font-mono" placeholder="CMPC | cmpc.cl&#10;Arauco | arauco.cl&#10;CAP | cap.cl&#10;Codelco | codelco.com"></textarea>
+        </div>
+        <div class="card p-6">
+          <h3 class="font-semibold mb-3">Keywords Licitaciones</h3>
+          <p class="text-gray-400 text-xs mb-2">Una por linea. Se buscan en Mercado Publico.</p>
+          <textarea id="prospeccion-keywords" rows="5" class="w-full bg-gray-50 border rounded-lg p-3 text-sm font-mono" placeholder="repuestos forestales&#10;rodamientos industriales&#10;sellos mecanicos&#10;correas industriales&#10;mangueras hidraulicas"></textarea>
+          <div class="mt-4">
+            <label class="block text-sm font-medium mb-1">Intervalo (horas)</label>
+            <select id="prospeccion-intervalo" class="w-full">
+              <option value="2">Cada 2 horas</option>
+              <option value="6" selected>Cada 6 horas</option>
+              <option value="12">Cada 12 horas</option>
+              <option value="24">Una vez al dia</option>
+            </select>
+          </div>
+          <button onclick="guardarConfigProspeccion()" class="btn btn-success mt-4 w-full">Guardar Configuracion</button>
+        </div>
+      </div>
+
+      <div id="prospeccion-status" class="mb-6"></div>
+
+      <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold">Prospectos Calificados por IA</h3>
+          <select id="prospeccion-filtro" onchange="loadProspectos()" class="text-sm">
+            <option value="0">Todos</option>
+            <option value="50">Puntaje 50+</option>
+            <option value="70">Puntaje 70+</option>
+            <option value="90">Puntaje 90+</option>
+          </select>
+        </div>
+        <div id="prospectos-list"></div>
+      </div>
+    </div>
+
+    <!-- HUNTER.IO -->
+    <div id="tab-hunter" class="tab-content hidden">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h2 class="text-2xl font-bold">Hunter.io - Busqueda de Emails por Empresa</h2>
+          <p class="text-gray-500 mt-1">Ingresa el dominio web de la empresa (ej: cmpc.cl) y encuentra todos los emails publicos con nombre y cargo</p>
         </div>
       </div>
 
       <div class="card p-6 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label class="block text-sm font-medium mb-1">Empresa</label>
-            <input id="apollo-empresa" placeholder="Ej: CMPC, Arauco, CAP, Codelco">
+            <label class="block text-sm font-medium mb-1">Dominio de la empresa</label>
+            <input id="hunter-dominio" placeholder="Ej: cmpc.cl, arauco.cl, cap.cl, codelco.com">
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Cargo</label>
-            <select id="apollo-cargo">
-              <option value="">Todos los cargos</option>
-              <option value="Gerente de Compras">Gerente de Compras</option>
-              <option value="Gerente de Mantenimiento">Gerente de Mantenimiento</option>
-              <option value="Gerente de Abastecimiento">Gerente de Abastecimiento</option>
-              <option value="Jefe de Compras">Jefe de Compras</option>
-              <option value="Jefe de Mantenimiento">Jefe de Mantenimiento</option>
-              <option value="Director de Operaciones">Director de Operaciones</option>
-              <option value="Gerente de Operaciones">Gerente de Operaciones</option>
-              <option value="Supply Chain Manager">Supply Chain Manager</option>
-              <option value="Procurement Manager">Procurement Manager</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Ubicacion</label>
-            <input id="apollo-ubicacion" value="Chile" placeholder="Chile, Santiago, etc.">
+          <div class="flex items-end">
+            <button onclick="hunterBuscar()" class="btn btn-apollo w-full">&#128640; Buscar Emails</button>
           </div>
         </div>
-        <div class="flex gap-3">
-          <button onclick="apolloBuscar()" class="btn btn-apollo">&#128640; Buscar en Apollo</button>
-          <button onclick="apolloImportarSeleccionados()" class="btn btn-success" id="btn-apollo-import" style="display:none">
-            Importar seleccionados al CRM
-          </button>
-        </div>
+        <p class="text-gray-400 text-xs">25 busquedas gratis por mes. Cada busqueda muestra hasta 20 contactos con email, nombre y cargo.</p>
       </div>
 
-      <div id="apollo-results"></div>
+      <div id="hunter-results"></div>
     </div>
 
     <!-- EMPRESAS -->
@@ -218,7 +247,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
 
 <script>
 let _debounceTimers = {};
-let _apolloResults = [];
+let _hunterResults = [];
+let _hunterEmpresa = '';
+let _hunterDominio = '';
 
 function debounce(fn, ms) {
   return function() { clearTimeout(_debounceTimers[fn.name]); _debounceTimers[fn.name] = setTimeout(fn, ms); };
@@ -237,7 +268,7 @@ function showTab(name) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(el => { el.classList.remove('tab-active'); if(el.dataset.tab === name) el.classList.add('tab-active'); });
-  const loaders = { dashboard: loadDashboard, empresas: loadEmpresas, contactos: loadContactos, pipeline: loadPipeline, email: loadCampanas, scraping: loadScrapingLog };
+  const loaders = { dashboard: loadDashboard, empresas: loadEmpresas, contactos: loadContactos, pipeline: loadPipeline, email: loadCampanas, scraping: loadScrapingLog, prospeccion: loadConfigProspeccion };
   if (loaders[name]) loaders[name]();
 }
 function showModal(html) { document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
@@ -261,82 +292,163 @@ async function loadDashboard() {
     <span class="text-gray-400 text-sm">${c.empresa_nombre||''}</span></div>`).join('') || '<p class="text-gray-400">Sin contactos aun</p>';
 }
 
-// === APOLLO.IO ===
-async function apolloBuscar() {
-  const empresa = document.getElementById('apollo-empresa').value;
-  const cargo = document.getElementById('apollo-cargo').value;
-  const ubicacion = document.getElementById('apollo-ubicacion').value;
-  document.getElementById('apollo-results').innerHTML = '<div class="text-center py-8"><div class="text-purple-600 text-lg font-medium">Buscando en Apollo.io...</div></div>';
-  const data = await api('/api/apollo/buscar', { method:'POST', body: { empresa, cargo, ubicacion } });
+// === HUNTER.IO ===
+async function hunterBuscar() {
+  const dominio = document.getElementById('hunter-dominio').value.trim();
+  if (!dominio) { toast('Ingresa un dominio (ej: cmpc.cl)'); return; }
+  document.getElementById('hunter-results').innerHTML = '<div class="text-center py-8"><div class="text-purple-600 text-lg font-medium">Buscando emails en ' + dominio + '...</div></div>';
+  const data = await api('/api/hunter/buscar', { method:'POST', body: { dominio } });
   if (data.error) {
-    document.getElementById('apollo-results').innerHTML = `<div class="card p-6 text-center"><p class="text-red-500">${data.error}</p></div>`;
+    document.getElementById('hunter-results').innerHTML = `<div class="card p-6 text-center"><p class="text-red-500">${data.error}</p></div>`;
     return;
   }
-  _apolloResults = data.people || [];
-  if (!_apolloResults.length) {
-    document.getElementById('apollo-results').innerHTML = '<div class="card p-6 text-center text-gray-400">Sin resultados. Prueba con otros filtros.</div>';
-    document.getElementById('btn-apollo-import').style.display = 'none';
+  _hunterResults = data.contacts || [];
+  _hunterEmpresa = data.empresa || dominio;
+  _hunterDominio = dominio;
+  if (!_hunterResults.length) {
+    document.getElementById('hunter-results').innerHTML = '<div class="card p-6 text-center text-gray-400">Sin resultados para ' + dominio + '</div>';
     return;
   }
-  document.getElementById('btn-apollo-import').style.display = 'inline-block';
-  document.getElementById('apollo-results').innerHTML = `
+  document.getElementById('hunter-results').innerHTML = `
     <div class="flex justify-between items-center mb-4">
-      <p class="text-gray-600"><strong>${data.total}</strong> contactos encontrados</p>
-      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" onchange="apolloToggleAll(this.checked)" checked> Seleccionar todos</label>
+      <p class="text-gray-600"><strong>${data.total}</strong> emails encontrados en <strong>${_hunterEmpresa}</strong></p>
+      <div class="flex gap-3 items-center">
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" onchange="hunterToggleAll(this.checked)" checked> Todos</label>
+        <button onclick="hunterImportarSeleccionados()" class="btn btn-success">Importar al CRM</button>
+      </div>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      ${_apolloResults.map((p, i) => `
-        <div class="apollo-card selected" id="apollo-card-${i}" onclick="apolloToggle(${i})">
+      ${_hunterResults.map((p, i) => `
+        <div class="apollo-card selected" id="hunter-card-${i}" onclick="hunterToggle(${i})">
           <div class="flex items-start gap-3">
             <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold text-sm flex-shrink-0">
               ${(p.nombre||'?')[0]}${(p.apellido||'?')[0]}
             </div>
             <div class="min-w-0">
-              <div class="font-semibold text-sm">${p.nombre} ${p.apellido}</div>
+              <div class="font-semibold text-sm">${p.nombre || ''} ${p.apellido || ''}</div>
               <div class="text-xs text-gray-500 truncate">${p.cargo || 'Sin cargo'}</div>
-              <div class="text-xs text-purple-600 font-medium mt-1">${p.empresa || 'Sin empresa'}</div>
-              ${p.email ? `<div class="text-xs text-gray-400 mt-1">${p.email}</div>` : '<div class="text-xs text-red-400 mt-1">Sin email</div>'}
-              ${p.telefono ? `<div class="text-xs text-gray-400">${p.telefono}</div>` : ''}
+              <div class="text-xs text-purple-600 font-medium mt-1">${p.email}</div>
+              ${p.departamento ? `<div class="text-xs text-gray-400">${p.departamento}</div>` : ''}
               <div class="flex gap-1 mt-2">
+                <span class="badge badge-green">${p.confianza}% confianza</span>
                 ${p.linkedin_url ? `<span class="badge badge-blue">LinkedIn</span>` : ''}
-                ${p.email ? `<span class="badge badge-green">Email</span>` : ''}
-                ${p.telefono ? `<span class="badge badge-yellow">Tel</span>` : ''}
               </div>
             </div>
           </div>
-          <input type="checkbox" class="apollo-check" data-idx="${i}" checked style="position:absolute;opacity:0">
+          <input type="checkbox" class="hunter-check" data-idx="${i}" checked style="position:absolute;opacity:0">
         </div>
       `).join('')}
     </div>`;
 }
 
-function apolloToggle(idx) {
-  const card = document.getElementById('apollo-card-' + idx);
-  const check = card.querySelector('.apollo-check');
+function hunterToggle(idx) {
+  const card = document.getElementById('hunter-card-' + idx);
+  const check = card.querySelector('.hunter-check');
   check.checked = !check.checked;
   card.classList.toggle('selected', check.checked);
 }
 
-function apolloToggleAll(checked) {
-  document.querySelectorAll('.apollo-check').forEach((el, i) => {
+function hunterToggleAll(checked) {
+  document.querySelectorAll('.hunter-check').forEach((el, i) => {
     el.checked = checked;
-    document.getElementById('apollo-card-' + i).classList.toggle('selected', checked);
+    document.getElementById('hunter-card-' + i).classList.toggle('selected', checked);
   });
 }
 
-async function apolloImportarSeleccionados() {
-  const checks = document.querySelectorAll('.apollo-check:checked');
-  const selected = [...checks].map(el => _apolloResults[el.dataset.idx]);
+async function hunterImportarSeleccionados() {
+  const checks = document.querySelectorAll('.hunter-check:checked');
+  const selected = [...checks].map(el => _hunterResults[el.dataset.idx]);
   if (!selected.length) { toast('Selecciona al menos un contacto'); return; }
-  const data = await api('/api/apollo/importar', { method:'POST', body: { contactos: selected } });
-  toast(`Importados: ${data.contactos_creados} contactos, ${data.empresas_creadas} empresas`);
-  document.getElementById('btn-apollo-import').style.display = 'none';
-  document.getElementById('apollo-results').innerHTML = `
+  const data = await api('/api/hunter/importar', { method:'POST', body: { contactos: selected, empresa: _hunterEmpresa, dominio: _hunterDominio } });
+  toast(`Importados: ${data.contactos_creados} contactos`);
+  document.getElementById('hunter-results').innerHTML = `
     <div class="card p-6 text-center">
       <div class="text-green-600 text-4xl mb-2">&#10003;</div>
-      <p class="font-semibold text-lg">${data.contactos_creados} contactos y ${data.empresas_creadas} empresas importados</p>
+      <p class="font-semibold text-lg">${data.contactos_creados} contactos importados de ${_hunterEmpresa}</p>
       <p class="text-gray-500 mt-1">Ve a Contactos o Pipeline para gestionarlos</p>
     </div>`;
+}
+
+// === PROSPECCION AUTOMATICA ===
+async function loadConfigProspeccion() {
+  const config = await api('/api/prospeccion/config');
+  const empresasText = (config.empresas_target || []).map(e => `${e.nombre} | ${e.dominio}`).join('\n');
+  document.getElementById('prospeccion-empresas').value = empresasText;
+  document.getElementById('prospeccion-keywords').value = (config.keywords || []).join('\n');
+  document.getElementById('prospeccion-intervalo').value = config.intervalo_horas || 6;
+  loadProspectos();
+}
+
+async function guardarConfigProspeccion() {
+  const empresasLines = document.getElementById('prospeccion-empresas').value.trim().split('\n').filter(Boolean);
+  const empresas_target = empresasLines.map(line => {
+    const parts = line.split('|').map(s => s.trim());
+    return { nombre: parts[0] || '', dominio: parts[1] || '' };
+  });
+  const keywords = document.getElementById('prospeccion-keywords').value.trim().split('\n').filter(Boolean);
+  const intervalo_horas = parseInt(document.getElementById('prospeccion-intervalo').value) || 6;
+  await api('/api/prospeccion/config', { method: 'POST', body: { empresas_target, keywords, intervalo_horas, activo: true } });
+  toast('Configuracion guardada');
+}
+
+async function ejecutarProspeccion() {
+  const btn = document.getElementById('btn-prospectar');
+  btn.disabled = true;
+  btn.textContent = 'Buscando...';
+  document.getElementById('prospeccion-status').innerHTML = '<div class="card p-6 text-center"><div class="text-purple-600 text-lg font-medium">Buscando contactos en todas las fuentes...</div><p class="text-gray-400 mt-2">Hunter.io + Mercado Publico + Scraping Web + Filtro IA</p></div>';
+  const data = await api('/api/prospeccion/ejecutar', { method: 'POST' });
+  btn.disabled = false;
+  btn.textContent = '⚡ Ejecutar Ahora';
+  if (data.error) {
+    document.getElementById('prospeccion-status').innerHTML = `<div class="card p-6 text-center text-red-500">${data.error}</div>`;
+    return;
+  }
+  document.getElementById('prospeccion-status').innerHTML = `
+    <div class="card p-6">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+        <div><div class="text-2xl font-bold text-purple-600">${data.total_raw||0}</div><div class="text-xs text-gray-500">Encontrados</div></div>
+        <div><div class="text-2xl font-bold text-blue-600">${data.hunter||0}</div><div class="text-xs text-gray-500">Hunter.io</div></div>
+        <div><div class="text-2xl font-bold text-green-600">${data.mercadopublico||0}</div><div class="text-xs text-gray-500">Mercado Publico</div></div>
+        <div><div class="text-2xl font-bold text-yellow-600">${data.nuevos||0}</div><div class="text-xs text-gray-500">Nuevos (sin duplicados)</div></div>
+        <div><div class="text-2xl font-bold text-red-600">${data.calificados||0}</div><div class="text-xs text-gray-500">Calificados IA</div></div>
+      </div>
+    </div>`;
+  loadProspectos();
+}
+
+async function loadProspectos() {
+  const min = document.getElementById('prospeccion-filtro')?.value || 0;
+  const data = await api('/api/prospeccion/prospectos?min_puntaje=' + min);
+  if (!data.length) {
+    document.getElementById('prospectos-list').innerHTML = '<p class="text-gray-400 text-center py-4">Sin prospectos aun. Configura empresas y ejecuta la prospeccion.</p>';
+    return;
+  }
+  document.getElementById('prospectos-list').innerHTML = `
+    <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Puntaje IA</th><th>Razon</th><th>Estado</th></tr></thead><tbody>
+    ${data.map(p => `
+      <tr>
+        <td class="font-medium">${p.nombre} ${p.apellido||''}</td>
+        <td>${p.cargo||'-'}</td>
+        <td>${p.email||'-'}</td>
+        <td>${p.empresa_nombre||'-'}</td>
+        <td><span class="badge ${p.puntaje_ia>=70?'badge-green':p.puntaje_ia>=50?'badge-yellow':'badge-blue'}">${Math.round(p.puntaje_ia)}</span></td>
+        <td class="text-xs text-gray-500">${p.razon||'-'}</td>
+        <td>
+          <select onchange="cambiarEstadoProspecto(${p.id}, this.value)" class="text-xs">
+            <option value="nuevo" ${p.estado==='nuevo'?'selected':''}>Nuevo</option>
+            <option value="contactar" ${p.estado==='contactar'?'selected':''}>Contactar</option>
+            <option value="contactado" ${p.estado==='contactado'?'selected':''}>Contactado</option>
+            <option value="descartado" ${p.estado==='descartado'?'selected':''}>Descartado</option>
+          </select>
+        </td>
+      </tr>
+    `).join('')}
+    </tbody></table>`;
+}
+
+async function cambiarEstadoProspecto(id, estado) {
+  await api('/api/prospeccion/prospectos/' + id, { method: 'PUT', body: { estado } });
+  toast('Estado actualizado');
 }
 
 // === EMPRESAS ===

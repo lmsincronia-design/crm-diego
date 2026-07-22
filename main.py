@@ -8,6 +8,7 @@ from pathlib import Path
 import database as db
 import scraper
 import emailer
+import prospector
 
 app = FastAPI(title="CRM Diego - Repuestos Industriales")
 
@@ -146,6 +147,51 @@ async def apollo_search(data: dict):
 async def apollo_import(data: dict):
     contactos = data.get("contactos", [])
     return await scraper.importar_apollo_al_crm(contactos)
+
+
+# --- HUNTER.IO ---
+
+@app.post("/api/hunter/buscar")
+async def hunter_search(data: dict):
+    dominio = data.get("dominio", "")
+    if not dominio:
+        return {"error": "Falta dominio (ej: cmpc.cl)"}
+    return await scraper.buscar_hunter(dominio)
+
+@app.post("/api/hunter/email")
+async def hunter_find_email(data: dict):
+    return await scraper.buscar_hunter_email(
+        data.get("nombre", ""), data.get("apellido", ""), data.get("dominio", ""))
+
+@app.post("/api/hunter/importar")
+async def hunter_import(data: dict):
+    return await scraper.importar_hunter_al_crm(
+        data.get("contactos", []), data.get("empresa", ""), data.get("dominio", ""))
+
+
+# --- PROSPECCION AUTOMATICA ---
+
+@app.get("/api/prospeccion/config")
+def get_prospeccion_config():
+    return db.obtener_config_prospeccion()
+
+@app.post("/api/prospeccion/config")
+def save_prospeccion_config(data: dict):
+    db.guardar_config_prospeccion(data)
+    return {"ok": True}
+
+@app.post("/api/prospeccion/ejecutar")
+async def run_prospeccion():
+    return await prospector.ejecutar_prospeccion()
+
+@app.get("/api/prospeccion/prospectos")
+def list_prospectos(min_puntaje: float = 0, limit: int = 100):
+    return db.listar_prospectos(min_puntaje, limit)
+
+@app.put("/api/prospeccion/prospectos/{id}")
+def update_prospecto(id: int, data: dict):
+    db.actualizar_prospecto_estado(id, data.get("estado", "nuevo"))
+    return {"ok": True}
 
 
 # --- SCRAPING ---

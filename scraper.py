@@ -34,15 +34,31 @@ async def buscar_apollo(
     if ubicacion:
         body["person_locations"] = [ubicacion]
 
+    headers = {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "X-Api-Key": api_key,
+    }
+    # ponytail: Apollo deprecó api_key en body, ahora va en header
+    del body["api_key"]
+
     async with httpx.AsyncClient(timeout=30) as client:
         try:
+            # ponytail: intenta people/search (gratis), fallback a mixed_people/search (pago)
             resp = await client.post(
-                "https://api.apollo.io/api/v1/mixed_people/search",
-                headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+                "https://api.apollo.io/api/v1/people/search",
+                headers=headers,
                 json=body,
             )
+            if resp.status_code == 403:
+                resp = await client.post(
+                    "https://api.apollo.io/api/v1/mixed_people/search",
+                    headers=headers,
+                    json=body,
+                )
             if resp.status_code != 200:
-                return {"error": f"Apollo API error: {resp.status_code}", "people": []}
+                detail = resp.text[:300]
+                return {"error": f"Apollo API error {resp.status_code}: {detail}", "people": []}
 
             data = resp.json()
         except httpx.HTTPError as e:
@@ -111,6 +127,103 @@ async def importar_apollo_al_crm(contactos: list[dict]) -> dict:
             contactos_creados += 1
 
     return {"empresas_creadas": empresas_creadas, "contactos_creados": contactos_creados}
+
+
+# --- HUNTER.IO ---
+
+async def buscar_hunter(dominio: str) -> dict:
+    """Busca emails de una empresa via Hunter.io (25 gratis/mes)."""
+    # ponytail: limpia URL completa a solo dominio
+    dominio = re.sub(r'^https?://(www\.)?', '', dominio).strip('/')
+    api_key = os.environ.get("HUNTER_API_KEY", "")
+    if not api_key:
+        return {"error": "HUNTER_API_KEY no configurada. Crea cuenta gratis en hunter.io", "contacts": []}
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            resp = await client.get(
+                "https://api.hunter.io/v2/domain-search",
+                params={"domain": dominio, "api_key": api_key},
+            )
+            if resp.status_code != 200:
+                detail = resp.text[:300]
+                return {"error": f"Hunter API error {resp.status_code}: {detail}", "contacts": []}
+
+            data = resp.json().get("data", {})
+        except httpx.HTTPError as e:
+            return {"error": str(e), "contacts": []}
+
+    contacts = []
+    for e in data.get("emails", []):
+        contacts.append({
+            "nombre": e.get("first_name", ""),
+            "apellido": e.get("last_name", ""),
+            "cargo": e.get("position", ""),
+            "email": e.get("value", ""),
+            "telefono": e.get("phone_number") or "",
+            "linkedin_url": e.get("linkedin", "") or "",
+            "confianza": e.get("confidence", 0),
+            "departamento": e.get("department", ""),
+        })
+
+    empresa = data.get("organization", dominio)
+    db.log_scraping("hunter", dominio, len(contacts))
+
+    return {
+        "contacts": contacts,
+        "total": data.get("total", len(contacts)),
+        "empresa": empresa,
+        "dominio": dominio,
+        "web_url": data.get("webmail", False),
+    }
+
+
+async def buscar_hunter_email(nombre: str, apellido: str, dominio: str) -> dict:
+    """Encuentra el email de una persona especifica via Hunter.io."""
+    api_key = os.environ.get("HUNTER_API_KEY", "")
+    if not api_key:
+        return {"error": "HUNTER_API_KEY no configurada"}
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://api.hunter.io/v2/email-finder",
+            params={"domain": dominio, "first_name": nombre, "last_name": apellido, "api_key": api_key},
+        )
+        if resp.status_code != 200:
+            return {"error": f"Hunter error {resp.status_code}"}
+
+        data = resp.json().get("data", {})
+        return {
+            "email": data.get("email", ""),
+            "confianza": data.get("score", 0),
+            "cargo": data.get("position", ""),
+        }
+
+
+async def importar_hunter_al_crm(contactos: list[dict], empresa_nombre: str, dominio: str) -> dict:
+    """Importa contactos de Hunter directamente al CRM."""
+    empresa_id = db.crear_empresa({
+        "nombre": empresa_nombre,
+        "sitio_web": f"https://{dominio}",
+        "fuente": "hunter",
+    })
+
+    contactos_creados = 0
+    for c in contactos:
+        if c.get("nombre") or c.get("email"):
+            db.crear_contacto({
+                "empresa_id": empresa_id,
+                "nombre": c.get("nombre", ""),
+                "apellido": c.get("apellido", ""),
+                "cargo": c.get("cargo", ""),
+                "email": c.get("email", ""),
+                "telefono": c.get("telefono", ""),
+                "linkedin_url": c.get("linkedin_url", ""),
+                "fuente": "hunter",
+            })
+            contactos_creados += 1
+
+    return {"empresas_creadas": 1, "contactos_creados": contactos_creados}
 
 
 # --- MERCADO PUBLICO ---
