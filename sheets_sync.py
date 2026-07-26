@@ -19,6 +19,8 @@ EMPRESAS_HEADERS = ["id", "nombre", "rut", "industria", "tamano", "sitio_web",
                      "direccion", "ciudad", "fuente", "notas", "created_at"]
 CONTACTOS_HEADERS = ["id", "empresa_nombre", "nombre", "apellido", "cargo", "email",
                       "telefono", "linkedin_url", "fuente", "notas", "created_at"]
+EVALUACIONES_HEADERS = ["id", "empresa", "rubro", "nombre", "apellido", "cargo", "email",
+                         "puntaje_ia", "razon_ia", "calificado", "created_at"]
 
 
 def _cliente():
@@ -32,7 +34,8 @@ def _cliente():
 
 
 def sincronizar() -> dict:
-    """Sobreescribe las hojas 'Empresas' y 'Contactos' con el estado actual del CRM.
+    """Sobreescribe las hojas 'Empresas', 'Contactos' (solo lo que califico) y
+    'Todos_Evaluados' (log completo, califique o no) con el estado actual del CRM.
 
     ponytail: reescribe todo en vez de hacer upsert incremental fila por fila.
     A la escala de este CRM (cientos/miles de filas, no millones) es mas simple
@@ -47,12 +50,14 @@ def sincronizar() -> dict:
         sh = gc.open_by_key(sheet_id)
         empresas = db.listar_empresas(limit=100000)
         contactos = db.listar_contactos(limit=100000)
+        evaluaciones = db.listar_evaluaciones_ia(limit=100000)
         _escribir_hoja(sh, "Empresas", EMPRESAS_HEADERS, empresas)
         _escribir_hoja(sh, "Contactos", CONTACTOS_HEADERS, contactos)
+        _escribir_hoja(sh, "Todos_Evaluados", EVALUACIONES_HEADERS, evaluaciones)
     except Exception as e:
         return {"error": f"Error sincronizando con Google Sheets: {e}"}
 
-    return {"empresas": len(empresas), "contactos": len(contactos)}
+    return {"empresas": len(empresas), "contactos": len(contactos), "evaluados": len(evaluaciones)}
 
 
 def _escribir_hoja(sh, nombre, headers, filas):

@@ -330,6 +330,10 @@ async def ejecutar_prospeccion() -> dict:
          "calificado": c.get("puntaje_ia", 0) >= 50}
         for c in evaluados
     ]
+    # ponytail: se guarda el log completo (califiquen o no) apenas se evalua, antes
+    # de que el resto de la funcion decida que hacer con los calificados. Asi si
+    # falla algo despues, igual queda registro de lo que la IA vio y decidio.
+    db.guardar_evaluaciones_ia(resumen["evaluados"])
 
     # 6. Guardar en DB
     for c in calificados:

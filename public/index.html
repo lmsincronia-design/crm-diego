@@ -300,7 +300,7 @@ async function sincronizarSheets() {
     document.getElementById('sheets-status').innerHTML = `<p class="text-orange-500 text-sm">${data.error}</p>`;
     return;
   }
-  document.getElementById('sheets-status').innerHTML = `<p class="text-green-600 text-sm">Sincronizado: ${data.empresas} empresas, ${data.contactos} contactos</p>`;
+  document.getElementById('sheets-status').innerHTML = `<p class="text-green-600 text-sm">Sincronizado: ${data.empresas} empresas, ${data.contactos} contactos, ${data.evaluados||0} evaluados (log completo)</p>`;
 }
 
 async function loadDashboard() {

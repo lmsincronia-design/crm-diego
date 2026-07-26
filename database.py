@@ -152,6 +152,11 @@ def _schema_pg():
             id SERIAL PRIMARY KEY, empresas_target TEXT DEFAULT '[]', keywords TEXT DEFAULT '[]',
             intervalo_horas INTEGER DEFAULT 6, activo BOOLEAN DEFAULT FALSE,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS evaluaciones_ia (
+            id SERIAL PRIMARY KEY, nombre TEXT DEFAULT '', apellido TEXT DEFAULT '', cargo TEXT DEFAULT '',
+            email TEXT DEFAULT '', empresa TEXT DEFAULT '', rubro TEXT DEFAULT '',
+            puntaje_ia REAL DEFAULT 0, razon_ia TEXT DEFAULT '', calificado BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
     """
 
 
@@ -190,6 +195,11 @@ def _schema_sqlite():
             id INTEGER PRIMARY KEY AUTOINCREMENT, empresas_target TEXT DEFAULT '[]', keywords TEXT DEFAULT '[]',
             intervalo_horas INTEGER DEFAULT 6, activo INTEGER DEFAULT 0,
             updated_at TEXT DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS evaluaciones_ia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT DEFAULT '', apellido TEXT DEFAULT '', cargo TEXT DEFAULT '',
+            email TEXT DEFAULT '', empresa TEXT DEFAULT '', rubro TEXT DEFAULT '',
+            puntaje_ia REAL DEFAULT 0, razon_ia TEXT DEFAULT '', calificado INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')));
     """
 
 
@@ -524,6 +534,31 @@ def actualizar_prospecto_estado(id: int, estado: str):
     ph = "%s" if USE_PG else "?"
     with get_db() as conn:
         _exec(conn, f"UPDATE prospectos SET estado = {ph} WHERE id = {ph}", (estado, id))
+
+
+# --- EVALUACIONES IA (log completo, califiquen o no) ---
+
+def guardar_evaluaciones_ia(evaluados: list[dict]):
+    """Registra TODOS los contactos que evaluo la IA en una corrida de prospeccion,
+    califiquen o no. Es un log de auditoria, no se deduplica ni se mezcla con
+    Empresas/Contactos -- eso permite revisar despues si el filtro estuvo bien."""
+    if not evaluados:
+        return
+    ph = "%s" if USE_PG else "?"
+    cols = "nombre, apellido, cargo, email, empresa, rubro, puntaje_ia, razon_ia, calificado"
+    with get_db() as conn:
+        for e in evaluados:
+            calificado = e.get("calificado", False)
+            vals = (e.get("nombre", ""), e.get("apellido", ""), e.get("cargo", ""), e.get("email", ""),
+                    e.get("empresa", ""), e.get("rubro", ""), e.get("puntaje_ia", 0), e.get("razon_ia", ""),
+                    calificado if USE_PG else int(calificado))
+            _exec(conn, f"INSERT INTO evaluaciones_ia ({cols}) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})", vals)
+
+
+def listar_evaluaciones_ia(limit: int = 100000):
+    ph = "%s" if USE_PG else "?"
+    with get_db() as conn:
+        return _fetchall(conn, f"SELECT * FROM evaluaciones_ia ORDER BY id DESC LIMIT {ph}", (limit,))
 
 
 # --- CONFIG PROSPECCION ---
