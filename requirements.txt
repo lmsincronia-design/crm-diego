@@ -7,3 +7,5 @@ openpyxl==3.1.5
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 anthropic==0.42.0
+gspread==6.1.4
+google-auth==2.36.0

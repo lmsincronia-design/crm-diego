@@ -9,6 +9,7 @@ import database as db
 import scraper
 import emailer
 import prospector
+import sheets_sync
 
 app = FastAPI(title="CRM Diego - Repuestos Industriales")
 
@@ -248,6 +249,10 @@ async def importar_csv(file: UploadFile = File(...)):
 @app.get("/api/scraping/log")
 def scraping_log():
     return db.listar_scraping_log()
+
+@app.post("/api/sheets/sincronizar")
+def sincronizar_sheets():
+    return sheets_sync.sincronizar()
 
 @app.post("/api/scraping/seia")
 async def scrape_seia(data: dict):

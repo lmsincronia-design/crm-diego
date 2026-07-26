@@ -141,7 +141,8 @@ def armar_email_sugerido(contacto: dict, rubro: str) -> dict:
 
 
 async def filtrar_con_ia(contactos: list[dict]) -> list[dict]:
-    """Filtra contactos con Claude API. Devuelve solo los relevantes con puntaje."""
+    """Puntua TODOS los contactos con Claude API (no descarta ninguno).
+    El llamador decide el corte (>=50) para saber quien califica."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         # ponytail: sin API key, filtro basico por cargo
@@ -159,16 +160,14 @@ async def filtrar_con_ia(contactos: list[dict]) -> list[dict]:
         prompt = f"""Eres un asistente de ventas B2B. Diego vende repuestos industriales y forestales en Chile:
 {PRODUCTOS_DIEGO}
 
-Analiza estos contactos y devuelve SOLO un JSON array con los que son prospectos potenciales
-(personas que podrian comprar estos productos por su cargo/empresa). Para cada uno devuelve:
-{{"idx": numero, "puntaje": 1-100, "razon": "por que es buen prospecto"}}
-
-Solo incluye contactos con puntaje >= 50. Si ninguno califica, devuelve [].
+Analiza estos contactos y devuelve un JSON array con TODOS ellos, sin excepcion (no descartes
+ninguno). Para cada uno, evalua si por su cargo/empresa podria comprar estos productos y devuelve:
+{{"idx": numero, "puntaje": 1-100, "razon": "explicacion breve, sea alto o bajo el puntaje"}}
 
 Contactos:
 {batch_text}
 
-Responde SOLO el JSON array, sin explicacion."""
+Responde SOLO el JSON array con los {len(batch)} contactos, sin explicacion."""
 
         async with httpx.AsyncClient(timeout=30) as client:
             try:
@@ -208,21 +207,20 @@ Responde SOLO el JSON array, sin explicacion."""
 
 
 def _filtro_basico(contactos: list[dict]) -> list[dict]:
-    """Filtro sin IA: por cargo relevante."""
+    """Filtro sin IA: por cargo relevante. Puntua TODOS, no descarta ninguno."""
     resultados = []
     for c in contactos:
         cargo = (c.get("cargo", "") or "").lower()
         puntaje = 0
-        razon = ""
+        razon = "Cargo no coincide con palabras clave de compras/mantenimiento"
         for kw in CARGOS_RELEVANTES:
             if kw in cargo:
                 puntaje = 60
                 razon = f"Cargo relevante: {c.get('cargo', '')}"
                 break
-        if puntaje >= 50:
-            c["puntaje_ia"] = puntaje
-            c["razon_ia"] = razon
-            resultados.append(c)
+        c["puntaje_ia"] = puntaje
+        c["razon_ia"] = razon
+        resultados.append(c)
     return resultados
 
 
@@ -318,9 +316,20 @@ async def ejecutar_prospeccion() -> dict:
         db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", 0)
         return resumen
 
-    # 5. Filtrar con IA
-    calificados = await filtrar_con_ia(nuevos)
+    # 5. Filtrar con IA (puntua a todos, el corte de calificacion se aplica aca)
+    evaluados = await filtrar_con_ia(nuevos)
+    calificados = [c for c in evaluados if c.get("puntaje_ia", 0) >= 50]
     resumen["calificados"] = len(calificados)
+    # ponytail: se manda la lista completa (calificados y descartados) para que
+    # se pueda auditar el filtro en el frontend/exportar a CSV, no solo confiar
+    # ciegamente en el corte de la IA.
+    resumen["evaluados"] = [
+        {"nombre": c.get("nombre", ""), "apellido": c.get("apellido", ""), "cargo": c.get("cargo", ""),
+         "email": c.get("email", ""), "empresa": c.get("empresa", ""), "rubro": c.get("rubro", ""),
+         "puntaje_ia": c.get("puntaje_ia", 0), "razon_ia": c.get("razon_ia", ""),
+         "calificado": c.get("puntaje_ia", 0) >= 50}
+        for c in evaluados
+    ]
 
     # 6. Guardar en DB
     for c in calificados:
@@ -363,4 +372,13 @@ async def ejecutar_prospeccion() -> dict:
         )
 
     db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", resumen["calificados"])
+
+    # ponytail: si Google Sheets no esta configurado o falla, no debe romper
+    # la prospeccion -- es un extra, no el flujo principal.
+    try:
+        import sheets_sync
+        sheets_sync.sincronizar()
+    except Exception:
+        pass
+
     return resumen
