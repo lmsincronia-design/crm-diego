@@ -147,6 +147,47 @@ def send_campana(id: int):
     return emailer.enviar_campana(id)
 
 
+# --- PLANTILLAS DE EMAIL ---
+
+@app.get("/api/plantillas")
+def list_plantillas():
+    return db.listar_plantillas()
+
+@app.post("/api/plantillas")
+def create_plantilla(data: dict):
+    return {"id": db.crear_plantilla(data)}
+
+@app.get("/api/plantillas/{id}")
+def get_plantilla(id: int):
+    return db.obtener_plantilla(id) or {"error": "No encontrada"}
+
+@app.put("/api/plantillas/{id}")
+def update_plantilla(id: int, data: dict):
+    db.actualizar_plantilla(id, data)
+    return {"ok": True}
+
+@app.delete("/api/plantillas/{id}")
+def delete_plantilla(id: int):
+    db.eliminar_plantilla(id)
+    return {"ok": True}
+
+@app.post("/api/plantillas/{id}/enviar")
+def enviar_plantilla(id: int, data: dict):
+    plantilla = db.obtener_plantilla(id)
+    if not plantilla:
+        return {"error": "Plantilla no encontrada"}
+    contacto_ids = data.get("contacto_ids", [])
+    if not contacto_ids:
+        return {"error": "Selecciona al menos un contacto"}
+    campana_id = db.crear_campana({
+        "nombre": f"{plantilla['nombre']} ({len(contacto_ids)} destinatarios)",
+        "asunto": plantilla["asunto"],
+        "cuerpo": plantilla["cuerpo"],
+    })
+    db.agregar_destinatarios(campana_id, contacto_ids)
+    return emailer.enviar_campana(campana_id)
+
+
 # --- APOLLO.IO ---
 
 @app.post("/api/apollo/buscar")

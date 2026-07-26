@@ -193,8 +193,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
         <input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()" class="flex-1">
         <select id="filtro-contacto-fuente" onchange="loadContactos()"><option value="">Todas las fuentes</option></select>
       </div>
+      <div id="contactos-seleccion-bar" class="mb-4 hidden"></div>
       <div class="card overflow-x-auto">
-        <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Acciones</th></tr></thead>
+        <table><thead><tr><th><input type="checkbox" onchange="contactoToggleAll(this.checked)"></th><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Acciones</th></tr></thead>
         <tbody id="tabla-contactos"></tbody></table>
       </div>
     </div>
@@ -247,8 +248,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
 
     <!-- EMAIL -->
     <div id="tab-email" class="tab-content hidden">
+      <h2 class="text-2xl font-bold mb-6">Email</h2>
+
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Plantillas de Correo</h3>
+        <button onclick="modalPlantilla()" class="btn btn-primary btn-sm">+ Nueva Plantilla</button>
+      </div>
+      <p class="text-gray-500 text-sm mb-4">Crea una plantilla por tipo de destinatario (ej. "Primer contacto - Mineria"). Desde Contactos, seleccionas gente y eliges cual plantilla mandarles.</p>
+      <div id="lista-plantillas" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10"></div>
+
       <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold">Campanas de Email</h2>
+        <h3 class="text-lg font-semibold">Campanas de Email</h3>
         <button onclick="modalCampana()" class="btn btn-primary">+ Nueva Campana</button>
       </div>
       <div id="lista-campanas" class="space-y-4"></div>
@@ -283,7 +293,7 @@ function showTab(name) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.getElementById('tab-' + name).classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(el => { el.classList.remove('tab-active'); if(el.dataset.tab === name) el.classList.add('tab-active'); });
-  const loaders = { dashboard: loadDashboard, empresas: loadEmpresas, contactos: loadContactos, pipeline: loadPipeline, email: loadCampanas, scraping: loadScrapingLog, prospeccion: loadConfigProspeccion };
+  const loaders = { dashboard: loadDashboard, empresas: loadEmpresas, contactos: loadContactos, pipeline: loadPipeline, email: loadEmail, scraping: loadScrapingLog, prospeccion: loadConfigProspeccion };
   if (loaders[name]) loaders[name]();
 }
 function showModal(html) { document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
@@ -600,12 +610,41 @@ async function loadContactos() {
   const buscar = document.getElementById('buscar-contacto')?.value || '';
   const fuente = document.getElementById('filtro-contacto-fuente')?.value || '';
   const data = await api(`/api/contactos?buscar=${encodeURIComponent(buscar)}&fuente=${encodeURIComponent(fuente)}`);
+  _contactosData = data;
+  _contactosSeleccionados.clear();
+  actualizarBarraSeleccion();
   document.getElementById('tabla-contactos').innerHTML = data.map(c => `
-    <tr><td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
+    <tr><td><input type="checkbox" class="contacto-check" data-id="${c.id}" onchange="contactoToggle(${c.id}, this.checked)" ${c.email?'':'disabled'}></td>
+    <td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
     <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${c.fuente||'-'}</span></td>
     <td><button onclick="modalContacto(${c.id})" class="btn btn-secondary btn-sm">Editar</button>
     <button onclick="eliminarContacto(${c.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
-  `).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-8">Sin contactos</td></tr>';
+  `).join('') || '<tr><td colspan="7" class="text-center text-gray-400 py-8">Sin contactos</td></tr>';
+}
+
+let _contactosData = [];
+let _contactosSeleccionados = new Set();
+
+function contactoToggle(id, checked) {
+  if (checked) _contactosSeleccionados.add(id); else _contactosSeleccionados.delete(id);
+  actualizarBarraSeleccion();
+}
+function contactoToggleAll(checked) {
+  document.querySelectorAll('.contacto-check:not(:disabled)').forEach(el => {
+    el.checked = checked;
+    const id = parseInt(el.dataset.id);
+    if (checked) _contactosSeleccionados.add(id); else _contactosSeleccionados.delete(id);
+  });
+  actualizarBarraSeleccion();
+}
+function actualizarBarraSeleccion() {
+  const bar = document.getElementById('contactos-seleccion-bar');
+  const n = _contactosSeleccionados.size;
+  if (!n) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  bar.classList.remove('hidden');
+  bar.innerHTML = `<div class="card p-4 flex justify-between items-center bg-purple-50">
+    <span class="font-medium">${n} contacto${n>1?'s':''} seleccionado${n>1?'s':''}</span>
+    <button onclick="abrirEnviarCorreo()" class="btn btn-apollo btn-sm">✉ Enviar Correo</button></div>`;
 }
 async function modalContacto(id) {
   let c = {nombre:'',apellido:'',cargo:'',email:'',telefono:'',linkedin_url:'',empresa_id:'',notas:''};
@@ -634,6 +673,65 @@ async function guardarContacto(id) {
   closeModal(); loadContactos(); toast(id?'Actualizado':'Creado');
 }
 async function eliminarContacto(id) { if (!confirm('Eliminar?')) return; await api('/api/contactos/'+id, {method:'DELETE'}); loadContactos(); toast('Eliminado'); }
+
+// === ENVIAR CORREO CON PLANTILLA ===
+function renderPlantilla(texto, contacto) {
+  const vals = {
+    nombre: contacto.nombre || '', apellido: contacto.apellido || '', cargo: contacto.cargo || '',
+    empresa: contacto.empresa_nombre || contacto.empresa || '', email: contacto.email || '',
+  };
+  let out = texto || '';
+  for (const k in vals) out = out.split(`{{${k}}}`).join(vals[k]);
+  return out;
+}
+
+async function abrirEnviarCorreo() {
+  const ids = [..._contactosSeleccionados];
+  if (!ids.length) { toast('Selecciona al menos un contacto'); return; }
+  const plantillas = await api('/api/plantillas');
+  if (!plantillas.length) {
+    showModal(`<h3 class="text-xl font-bold mb-4">Enviar Correo</h3>
+      <p class="text-gray-500">Aun no tienes plantillas creadas. Ve a la pestana Email y crea una primero.</p>
+      <div class="flex justify-end mt-4"><button onclick="closeModal()" class="btn btn-secondary">Cerrar</button></div>`);
+    return;
+  }
+  window._envioPlantillas = plantillas;
+  window._envioSeleccion = _contactosData.filter(c => ids.includes(c.id));
+  const n = window._envioSeleccion.length;
+  showModal(`<h3 class="text-xl font-bold mb-4">Enviar Correo a ${n} contacto${n>1?'s':''}</h3>
+    <label class="block text-sm font-medium mb-1">Plantilla</label>
+    <select id="envio-plantilla" onchange="previsualizarEnvio()" class="mb-4">
+      ${plantillas.map(p => `<option value="${p.id}">${p.nombre}${p.categoria?' ('+p.categoria+')':''}</option>`).join('')}
+    </select>
+    <div id="envio-preview"></div>
+    <div class="flex justify-end gap-3 mt-6"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="confirmarEnvioPlantilla()" class="btn btn-primary">Enviar a ${n}</button></div>`);
+  previsualizarEnvio();
+}
+
+function previsualizarEnvio() {
+  const pid = parseInt(document.getElementById('envio-plantilla').value);
+  const plantilla = window._envioPlantillas.find(p => p.id === pid);
+  const primero = window._envioSeleccion[0];
+  document.getElementById('envio-preview').innerHTML = `
+    <p class="text-xs text-gray-400 mb-2">Vista previa para ${primero.nombre} ${primero.apellido||''} (se genera 1 correo personalizado por cada destinatario):</p>
+    <div class="bg-gray-50 border rounded-lg p-4">
+      <p class="font-medium mb-2">Asunto: ${renderPlantilla(plantilla.asunto, primero)}</p>
+      <div class="text-sm whitespace-pre-wrap">${renderPlantilla(plantilla.cuerpo, primero)}</div>
+    </div>`;
+}
+
+async function confirmarEnvioPlantilla() {
+  const pid = parseInt(document.getElementById('envio-plantilla').value);
+  const ids = window._envioSeleccion.map(c => c.id);
+  closeModal();
+  toast('Enviando...');
+  const res = await api(`/api/plantillas/${pid}/enviar`, {method:'POST', body:{contacto_ids: ids}});
+  if (res.error) { toast(res.error); return; }
+  toast(`Enviados: ${res.enviados}, Errores: ${res.errores}`);
+  _contactosSeleccionados.clear();
+  loadContactos();
+}
 
 // === PIPELINE ===
 const ETAPAS = ['prospecto','contactado','propuesta','negociacion','cerrado'];
@@ -766,6 +864,57 @@ async function agregarEmpresaOportunidad(i) {
 }
 
 // === EMAIL ===
+function loadEmail() {
+  loadPlantillas();
+  loadCampanas();
+}
+
+async function loadPlantillas() {
+  const data = await api('/api/plantillas');
+  document.getElementById('lista-plantillas').innerHTML = data.map(p => `
+    <div class="card p-4">
+      <div class="flex justify-between items-start gap-2">
+        <div>
+          <h4 class="font-bold">${p.nombre}</h4>
+          ${p.categoria ? `<span class="badge badge-purple text-xs">${p.categoria}</span>` : ''}
+          <p class="text-gray-500 text-xs mt-1">Asunto: ${p.asunto}</p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button onclick="modalPlantilla(${p.id})" class="btn btn-secondary btn-sm">Editar</button>
+          <button onclick="eliminarPlantilla(${p.id})" class="btn btn-danger btn-sm">X</button>
+        </div>
+      </div>
+    </div>`).join('') || '<p class="text-gray-400 md:col-span-2 text-center py-4">Sin plantillas aun</p>';
+}
+
+async function modalPlantilla(id) {
+  let p = {nombre:'', categoria:'', asunto:'', cuerpo:''};
+  if (id) p = await api('/api/plantillas/'+id);
+  showModal(`<h3 class="text-xl font-bold mb-4">${id?'Editar':'Nueva'} Plantilla</h3>
+    <div class="space-y-4">
+      <div><label class="block text-sm font-medium mb-1">Nombre</label><input id="pl-nombre" value="${p.nombre||''}" placeholder="Primer contacto - Mineria"></div>
+      <div><label class="block text-sm font-medium mb-1">Categoria (opcional)</label><input id="pl-categoria" value="${p.categoria||''}" placeholder="Mineria, Forestal, Gerente Compras..."></div>
+      <div><label class="block text-sm font-medium mb-1">Asunto</label><input id="pl-asunto" value="${p.asunto||''}" placeholder="Usa {{nombre}}, {{empresa}}"></div>
+      <div><label class="block text-sm font-medium mb-1">Cuerpo</label>
+        <textarea id="pl-cuerpo" rows="8" placeholder="Estimado/a {{nombre}},&#10;&#10;Variables: {{nombre}}, {{apellido}}, {{cargo}}, {{empresa}}">${p.cuerpo||''}</textarea></div>
+    </div>
+    <div class="flex justify-end gap-3 mt-6"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarPlantilla(${id||'null'})" class="btn btn-primary">Guardar</button></div>`);
+}
+
+async function guardarPlantilla(id) {
+  const d = {nombre:document.getElementById('pl-nombre').value, categoria:document.getElementById('pl-categoria').value,
+             asunto:document.getElementById('pl-asunto').value, cuerpo:document.getElementById('pl-cuerpo').value};
+  if (!d.nombre || !d.asunto || !d.cuerpo) { toast('Completa nombre, asunto y cuerpo'); return; }
+  if (id) await api('/api/plantillas/'+id, {method:'PUT', body:d}); else await api('/api/plantillas', {method:'POST', body:d});
+  closeModal(); loadPlantillas(); toast(id?'Actualizada':'Creada');
+}
+
+async function eliminarPlantilla(id) {
+  if (!confirm('Eliminar plantilla?')) return;
+  await api('/api/plantillas/'+id, {method:'DELETE'});
+  loadPlantillas(); toast('Eliminada');
+}
+
 async function loadCampanas() {
   const data = await api('/api/campanas');
   document.getElementById('lista-campanas').innerHTML = data.map(c => `

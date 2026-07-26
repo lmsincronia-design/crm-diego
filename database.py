@@ -157,6 +157,9 @@ def _schema_pg():
             email TEXT DEFAULT '', empresa TEXT DEFAULT '', rubro TEXT DEFAULT '',
             puntaje_ia REAL DEFAULT 0, razon_ia TEXT DEFAULT '', calificado BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS plantillas_email (
+            id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, categoria TEXT DEFAULT '',
+            asunto TEXT NOT NULL, cuerpo TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
     """
 
 
@@ -200,6 +203,9 @@ def _schema_sqlite():
             email TEXT DEFAULT '', empresa TEXT DEFAULT '', rubro TEXT DEFAULT '',
             puntaje_ia REAL DEFAULT 0, razon_ia TEXT DEFAULT '', calificado INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS plantillas_email (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, categoria TEXT DEFAULT '',
+            asunto TEXT NOT NULL, cuerpo TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));
     """
 
 
@@ -496,6 +502,56 @@ def empresa_existe_por_dominio(dominio: str) -> int | None:
     with get_db() as conn:
         row = _fetchone(conn, f"SELECT id FROM empresas WHERE sitio_web {like} {ph}", (f"%{dominio}%",))
         return row["id"] if row else None
+
+
+# --- PLANTILLAS DE EMAIL ---
+
+_plantilla_fields = ["nombre", "categoria", "asunto", "cuerpo"]
+
+def crear_plantilla(data: dict) -> int:
+    vals = {k: data.get(k, "") for k in _plantilla_fields}
+    cols = ", ".join(_plantilla_fields)
+    with get_db() as conn:
+        if USE_PG:
+            phs = ", ".join(f"%({k})s" for k in _plantilla_fields)
+            cur = conn.cursor()
+            cur.execute(f"INSERT INTO plantillas_email ({cols}) VALUES ({phs}) RETURNING id", vals)
+            return cur.fetchone()["id"]
+        else:
+            phs = ", ".join(f":{k}" for k in _plantilla_fields)
+            return conn.execute(f"INSERT INTO plantillas_email ({cols}) VALUES ({phs})", vals).lastrowid
+
+
+def listar_plantillas():
+    with get_db() as conn:
+        return _fetchall(conn, "SELECT * FROM plantillas_email ORDER BY id DESC")
+
+
+def obtener_plantilla(id: int):
+    ph = "%s" if USE_PG else "?"
+    with get_db() as conn:
+        return _fetchone(conn, f"SELECT * FROM plantillas_email WHERE id = {ph}", (id,))
+
+
+def actualizar_plantilla(id: int, data: dict):
+    fields = {k: v for k, v in data.items() if k in _plantilla_fields}
+    if not fields:
+        return
+    if USE_PG:
+        set_c = ", ".join(f"{k} = %({k})s" for k in fields)
+        fields["id"] = id
+        with get_db() as conn:
+            conn.cursor().execute(f"UPDATE plantillas_email SET {set_c} WHERE id = %(id)s", fields)
+    else:
+        set_c = ", ".join(f"{k} = :{k}" for k in fields)
+        fields["id"] = id
+        with get_db() as conn:
+            conn.execute(f"UPDATE plantillas_email SET {set_c} WHERE id = :id", fields)
+
+
+def eliminar_plantilla(id: int):
+    with get_db() as conn:
+        _exec(conn, "DELETE FROM plantillas_email WHERE id = %s" if USE_PG else "DELETE FROM plantillas_email WHERE id = ?", (id,))
 
 
 # --- PROSPECTOS ---
