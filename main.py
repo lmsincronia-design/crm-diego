@@ -18,7 +18,10 @@ PUBLIC_DIR = Path(__file__).parent / "public"
 @app.on_event("startup")
 def startup():
     db.init_db()
-    PUBLIC_DIR.mkdir(exist_ok=True)
+    try:
+        PUBLIC_DIR.mkdir(exist_ok=True)
+    except OSError:
+        pass  # ponytail: read-only filesystem on Vercel, public/ is served as a separate static build there
 
 
 # --- DASHBOARD ---
@@ -31,8 +34,16 @@ def get_dashboard():
 # --- EMPRESAS ---
 
 @app.get("/api/empresas")
-def list_empresas(buscar: str = "", limit: int = 100, offset: int = 0):
-    return db.listar_empresas(buscar, limit, offset)
+def list_empresas(buscar: str = "", industria: str = "", fuente: str = "", limit: int = 100, offset: int = 0):
+    return db.listar_empresas(buscar, industria, fuente, limit, offset)
+
+@app.get("/api/empresas/fuentes")
+def get_fuentes_empresas():
+    return db.fuentes_empresas()
+
+@app.get("/api/empresas/industrias")
+def get_industrias_empresas():
+    return db.industrias_empresas()
 
 @app.post("/api/empresas")
 def create_empresa(data: dict):
@@ -56,8 +67,12 @@ def delete_empresa(id: int):
 # --- CONTACTOS ---
 
 @app.get("/api/contactos")
-def list_contactos(buscar: str = "", empresa_id: int = None, limit: int = 100, offset: int = 0):
-    return db.listar_contactos(buscar, empresa_id, limit, offset)
+def list_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", limit: int = 100, offset: int = 0):
+    return db.listar_contactos(buscar, empresa_id, fuente, limit, offset)
+
+@app.get("/api/contactos/fuentes")
+def get_fuentes_contactos():
+    return db.fuentes_contactos()
 
 @app.post("/api/contactos")
 def create_contacto(data: dict):
@@ -175,6 +190,14 @@ async def hunter_import(data: dict):
 def get_prospeccion_config():
     return db.obtener_config_prospeccion()
 
+@app.get("/api/prospeccion/rubros")
+def get_rubros():
+    return prospector.listar_rubros()
+
+@app.post("/api/prospeccion/empresas-por-rubro")
+def get_empresas_por_rubro(data: dict):
+    return {"empresas": prospector.empresas_por_rubro(data.get("rubros", []))}
+
 @app.post("/api/prospeccion/config")
 def save_prospeccion_config(data: dict):
     db.guardar_config_prospeccion(data)
@@ -201,8 +224,10 @@ async def scrape_mercadopublico(data: dict):
     keyword = data.get("keyword", "")
     if not keyword:
         return {"error": "Falta keyword"}
-    resultados = await scraper.buscar_mercadopublico(keyword)
-    return {"resultados": resultados, "total": len(resultados)}
+    resultado = await scraper.buscar_mercadopublico(keyword)
+    if "error" in resultado:
+        return resultado
+    return {"resultados": resultado["resultados"], "total": len(resultado["resultados"])}
 
 @app.post("/api/scraping/sitio")
 async def scrape_sitio(data: dict):
@@ -223,6 +248,13 @@ async def importar_csv(file: UploadFile = File(...)):
 @app.get("/api/scraping/log")
 def scraping_log():
     return db.listar_scraping_log()
+
+@app.post("/api/scraping/seia")
+async def scrape_seia(data: dict):
+    rubro = data.get("rubro", "")
+    if not rubro:
+        return {"error": "Falta rubro"}
+    return await scraper.buscar_seia(rubro)
 
 
 # --- STATIC FILES ---

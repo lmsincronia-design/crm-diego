@@ -20,6 +20,125 @@ CARGOS_RELEVANTES = [
     "gerente", "jefe", "director", "manager", "head", "chief",
 ]
 
+# ponytail: seed de grandes empresas industriales chilenas por rubro, para
+# precargar "Empresas Target" con un clic. Dominios a validar/corregir por
+# Diego (si un dominio esta mal, Hunter simplemente devuelve 0 contactos).
+EMPRESAS_CHILE = {
+    "Forestal": [
+        ("Arauco", "arauco.cl"),
+        ("CMPC", "cmpc.cl"),
+        ("Masisa", "masisa.com"),
+        ("Forestal Mininco", "mininco.cl"),
+        ("Volterra", "volterra.cl"),
+    ],
+    "Mineria": [
+        ("Codelco", "codelco.cl"),
+        ("SQM", "sqm.com"),
+        ("Antofagasta Minerals", "aminerals.cl"),
+        ("Collahuasi", "collahuasi.cl"),
+        ("Anglo American Chile", "angloamerican.cl"),
+        ("CAP Mineria", "cap.cl"),
+        ("Minera Los Pelambres", "aminerals.cl"),
+        ("BHP Escondida", "bhp.com"),
+        ("Kinross Chile", "kinross.com"),
+        ("Teck Resources Chile", "teck.com"),
+        ("Albemarle Chile", "albemarle.com"),
+    ],
+    "Energia": [
+        ("ENAP", "enap.cl"),
+        ("Enel Chile", "enel.cl"),
+        ("Colbun", "colbun.cl"),
+        ("AES Andes", "aesandes.com"),
+        ("Engie Chile", "engie-energia.cl"),
+        ("Transelec", "transelec.cl"),
+        ("Grupo Saesa", "saesa.cl"),
+        ("Statkraft Chile", "statkraft.cl"),
+    ],
+    "Pesca y Acuicultura": [
+        ("Camanchaca", "camanchaca.cl"),
+        ("Multiexport Foods", "multiexportfoods.com"),
+        ("Blumar", "blumar.com"),
+        ("Salmones Austral", "salmonesaustral.cl"),
+        ("Cermaq Chile", "cermaq.com"),
+        ("Australis Seafoods", "australisseafoods.com"),
+    ],
+    "Alimentos y Bebidas": [
+        ("Carozzi", "carozzi.cl"),
+        ("CCU", "ccu.cl"),
+        ("Embotelladora Andina", "koandina.com"),
+        ("Watts", "watts.cl"),
+        ("Agrosuper", "agrosuper.com"),
+        ("Nestle Chile", "nestle.cl"),
+        ("Ariztia", "ariztia.com"),
+        ("Iansa", "iansa.cl"),
+    ],
+    "Transporte y Logistica": [
+        ("SAAM", "saam.com"),
+        ("Ultramar", "ultramar.com"),
+        ("Agunsa", "agunsa.com"),
+        ("CCNI", "ccni.cl"),
+        ("Puerto Ventanas", "puertoventanas.cl"),
+    ],
+    "Construccion e Industrial": [
+        ("Melon", "melon.cl"),
+        ("Sigdo Koppers", "sigdokoppers.cl"),
+        ("Cementos Bio Bio", "cbb.cl"),
+        ("Besalco", "besalco.cl"),
+        ("Echeverria Izquierdo", "echeverriaizquierdo.cl"),
+    ],
+}
+
+
+def listar_rubros() -> list[dict]:
+    return [{"rubro": r, "total": len(v)} for r, v in EMPRESAS_CHILE.items()]
+
+
+def empresas_por_rubro(rubros: list[str]) -> list[dict]:
+    resultado = []
+    for r in rubros:
+        for nombre, dominio in EMPRESAS_CHILE.get(r, []):
+            resultado.append({"nombre": nombre, "dominio": dominio, "rubro": r})
+    return resultado
+
+
+# ponytail: sin ANTHROPIC_API_KEY no hay como generar un match producto/email
+# realmente inteligente, asi que esto es una plantilla por rubro. Funciona hoy,
+# sin depender de ninguna API paga. Si despues se agrega la key, se puede pedirle
+# a filtrar_con_ia que genere esto mismo pero personalizado con mas contexto.
+RUBRO_PRODUCTOS = {
+    "Forestal": "correas transportadoras, rodamientos y mangueras hidraulicas para cosechadoras y equipos forestales",
+    "Mineria": "rodamientos, sellos mecanicos y reductores de velocidad para chancadores y correas transportadoras",
+    "Energia": "acoplamientos, bombas y motores electricos para plantas de generacion",
+    "Pesca y Acuicultura": "bombas, sellos mecanicos y motores electricos para plantas de proceso",
+    "Transporte y Logistica": "rodamientos, correas industriales y reductores de velocidad para equipos de manejo de materiales",
+    "Construccion e Industrial": "cadenas, piñones y rodamientos para maquinaria pesada",
+    "Alimentos y Bebidas": "correas transportadoras, bombas, motores electricos y sellos mecanicos para lineas de proceso y envasado",
+}
+PRODUCTOS_DEFAULT = "rodamientos, sellos mecanicos, correas industriales y repuestos para mantenimiento industrial"
+
+
+def sugerir_producto(rubro: str) -> str:
+    return RUBRO_PRODUCTOS.get(rubro, PRODUCTOS_DEFAULT)
+
+
+def armar_email_sugerido(contacto: dict, rubro: str) -> dict:
+    """Arma un borrador de correo para que Diego lo revise, edite y envie el mismo."""
+    nombre = contacto.get("nombre", "")
+    empresa = contacto.get("empresa", "")
+    productos = sugerir_producto(rubro)
+    asunto = f"Repuestos industriales para {empresa}" if empresa else "Repuestos industriales para su operacion"
+    saludo = f"Estimado/a {nombre}," if nombre else "Estimado/a,"
+    rubro_txt = rubro.lower() if rubro else "industrial"
+    cuerpo = (
+        f"{saludo}\n\n"
+        f"Mi nombre es Diego Ostertag. Importamos y distribuimos repuestos industriales "
+        f"({productos}) para empresas del rubro {rubro_txt} en Chile.\n\n"
+        f"Nos gustaria conversar sobre como podemos apoyar el abastecimiento de repuestos en "
+        f"{empresa or 'su empresa'}.\n\n"
+        f"Quedo atento a su respuesta.\n\nSaludos,\nDiego Ostertag"
+    )
+    return {"asunto": asunto, "cuerpo": cuerpo}
+
 
 async def filtrar_con_ia(contactos: list[dict]) -> list[dict]:
     """Filtra contactos con Claude API. Devuelve solo los relevantes con puntaje."""
@@ -129,6 +248,7 @@ async def ejecutar_prospeccion() -> dict:
             for c in data.get("contacts", []):
                 c["empresa"] = data.get("empresa", emp.get("nombre", dominio))
                 c["dominio"] = dominio
+                c["rubro"] = emp.get("rubro", "")
                 c["fuente_prospeccion"] = "hunter"
                 contactos_raw.append(c)
                 resumen["hunter"] += 1
@@ -138,7 +258,7 @@ async def ejecutar_prospeccion() -> dict:
     # 2. Mercado Publico — buscar licitaciones
     for kw in keywords:
         try:
-            licitaciones = await scraper.buscar_mercadopublico(kw)
+            licitaciones = (await scraper.buscar_mercadopublico(kw)).get("resultados", [])
             for lic in licitaciones:
                 contactos_raw.append({
                     "nombre": lic.get("organismo", ""),
@@ -172,6 +292,8 @@ async def ejecutar_prospeccion() -> dict:
                     "cargo": "",
                     "email": email,
                     "empresa": emp.get("nombre", ""),
+                    "dominio": emp.get("dominio", ""),
+                    "rubro": emp.get("rubro", ""),
                     "fuente_prospeccion": "web",
                 })
                 resumen["web"] += 1
@@ -206,12 +328,15 @@ async def ejecutar_prospeccion() -> dict:
         empresa_id = None
         empresa_nombre = c.get("empresa", "")
 
+        rubro = c.get("rubro", "")
+
         if dominio:
             empresa_id = db.empresa_existe_por_dominio(dominio)
         if not empresa_id and empresa_nombre:
             empresa_id = db.crear_empresa({
                 "nombre": empresa_nombre,
                 "sitio_web": f"https://{dominio}" if dominio else "",
+                "industria": rubro,
                 "fuente": c.get("fuente_prospeccion", "prospeccion"),
             })
 
@@ -226,10 +351,15 @@ async def ejecutar_prospeccion() -> dict:
             "fuente": c.get("fuente_prospeccion", "prospeccion"),
         })
 
+        email_draft = armar_email_sugerido(c, rubro)
         db.crear_prospecto(
             contacto_id=contacto_id,
             puntaje=c.get("puntaje_ia", 0),
             razon=c.get("razon_ia", ""),
+            rubro=rubro,
+            producto_sugerido=sugerir_producto(rubro),
+            email_asunto=email_draft["asunto"],
+            email_cuerpo=email_draft["cuerpo"],
         )
 
     db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", resumen["calificados"])

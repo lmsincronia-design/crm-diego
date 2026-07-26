@@ -3,6 +3,7 @@ import httpx
 from bs4 import BeautifulSoup
 import csv
 import io
+import json
 import re
 import database as db
 
@@ -228,56 +229,45 @@ async def importar_hunter_al_crm(contactos: list[dict], empresa_nombre: str, dom
 
 # --- MERCADO PUBLICO ---
 
-async def buscar_mercadopublico(keyword: str) -> list[dict]:
-    """Busca licitaciones en Mercado Publico (ChileCompra)."""
+async def buscar_mercadopublico(keyword: str) -> dict:
+    """Busca licitaciones en Mercado Publico (ChileCompra) via API oficial.
+
+    ponytail: el sitio web de ChileCompra ahora es una SPA (Angular) y ya no
+    tiene una URL de busqueda server-rendered para scrapear como fallback,
+    asi que esto requiere si o si un ticket gratis de api.mercadopublico.cl.
+    """
     ticket = os.environ.get("MERCADOPUBLICO_TICKET", "")
+    if not ticket:
+        return {
+            "error": "MERCADOPUBLICO_TICKET no configurado. Solicita un ticket gratis en https://api.mercadopublico.cl/APISOCDS/OCDS/",
+            "resultados": [],
+        }
 
-    if ticket:
-        async with httpx.AsyncClient(timeout=30) as client:
-            try:
-                resp = await client.get(
-                    "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json",
-                    params={"keyword": keyword, "ticket": ticket},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    resultados = []
-                    for lic in data.get("Listado", []):
-                        resultados.append({
-                            "codigo": lic.get("CodigoExterno", ""),
-                            "nombre": lic.get("Nombre", ""),
-                            "organismo": lic.get("Comprador", {}).get("NombreOrganismo", ""),
-                            "estado": lic.get("CodigoEstado", ""),
-                            "fecha_cierre": lic.get("FechaCierre", ""),
-                            "monto": lic.get("MontoEstimado", 0),
-                        })
-                    db.log_scraping("mercadopublico_api", keyword, len(resultados))
-                    return resultados
-            except httpx.HTTPError:
-                pass
-
-    # ponytail: fallback a scraping web si no hay ticket API
-    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         try:
             resp = await client.get(
-                "https://www.mercadopublico.cl/Procurement/Modules/RFB/StoreSearch.aspx",
-                params={"Q": keyword},
+                "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json",
+                params={"keyword": keyword, "ticket": ticket},
             )
-        except httpx.HTTPError:
-            return []
+            if resp.status_code != 200:
+                return {"error": f"Mercado Publico API error {resp.status_code}", "resultados": []}
+            data = resp.json()
+        except httpx.HTTPError as e:
+            return {"error": str(e), "resultados": []}
 
-    soup = BeautifulSoup(resp.text, "html.parser")
     resultados = []
-    for item in soup.select(".results-item, .listing-item, tr.row-item"):
-        titulo = item.select_one("a, .title, td:first-child")
-        if titulo:
-            resultados.append({
-                "codigo": "", "nombre": titulo.get_text(strip=True),
-                "organismo": "", "estado": "", "fecha_cierre": "", "monto": 0,
-            })
+    for lic in data.get("Listado", []):
+        resultados.append({
+            "codigo": lic.get("CodigoExterno", ""),
+            "nombre": lic.get("Nombre", ""),
+            "organismo": lic.get("Comprador", {}).get("NombreOrganismo", ""),
+            "estado": lic.get("CodigoEstado", ""),
+            "fecha_cierre": lic.get("FechaCierre", ""),
+            "monto": lic.get("MontoEstimado", 0),
+        })
 
-    db.log_scraping("mercadopublico_web", keyword, len(resultados))
-    return resultados
+    db.log_scraping("mercadopublico_api", keyword, len(resultados))
+    return {"resultados": resultados}
 
 
 # --- SCRAPING WEB ---
@@ -308,6 +298,78 @@ async def scrape_sitio_empresa(url: str) -> dict:
                 break
 
     return info
+
+
+# --- SEIA (Ministerio de Medio Ambiente) ---
+
+# ponytail: mismo rotulo de rubro que prospector.EMPRESAS_CHILE/RUBRO_PRODUCTOS,
+# para que una empresa detectada aca encaje directo en ese flujo despues.
+SEIA_SECTORES = {
+    "Forestal": "11",
+    "Mineria": "2",
+    "Energia": "7",
+    "Pesca y Acuicultura": "5",
+    "Construccion e Industrial": "16",
+    "Transporte y Logistica": "14",
+    "Alimentos y Bebidas": "16",
+}
+
+
+async def buscar_seia(rubro: str, limit: int = 20) -> dict:
+    """Busca proyectos recientes en el SEIA (Servicio de Evaluacion Ambiental) por rubro.
+
+    Senal proactiva: empresas que recien ingresaron un proyecto nuevo (mina, planta,
+    parque de energia, etc.) antes de que aparezca cualquier licitacion en Mercado
+    Publico. El sitio exige pasar primero por buscarProyectoResumen.php (fija sesion/
+    referer) antes de que buscarProyectoResumenAction.php acepte la consulta real.
+    """
+    sector = SEIA_SECTORES.get(rubro)
+    if not sector:
+        return {"error": f"Rubro '{rubro}' no soportado en SEIA", "proyectos": []}
+
+    campos = {
+        "nombre": "", "titular": "", "folio": "", "selectRegion": "", "selectComuna": "",
+        "tipoPresentacion": "Ambos", "projectStatus": "", "PresentacionMin": "", "PresentacionMax": "",
+        "CalificaMin": "", "CalificaMax": "", "razoningreso": "", "id_tipoexpediente": "",
+    }
+
+    async with httpx.AsyncClient(timeout=30, headers={"User-Agent": "Mozilla/5.0"}) as client:
+        try:
+            await client.post(
+                "https://seia.sea.gob.cl/busqueda/buscarProyectoResumen.php",
+                data={**campos, "sectores_economicos[]": sector},
+            )
+            resp = await client.post(
+                "https://seia.sea.gob.cl/busqueda/buscarProyectoResumenAction.php",
+                data={**campos, "sectores_economicos": sector, "offset": 1, "limit": limit,
+                      "orderColumn": "FECHA_PRESENTACION", "orderDir": "desc"},
+                headers={"Referer": "https://seia.sea.gob.cl/busqueda/buscarProyectoResumen.php"},
+            )
+            # ponytail: el SEIA declara charset=ISO-8859-1 pero httpx .json() decodifica
+            # los bytes crudos asumiendo UTF-8 e ignora el charset del header -> revienta
+            # con tildes/enie. Se decodifica explicito antes de parsear.
+            data = json.loads(resp.content.decode("iso-8859-1"))
+        except httpx.HTTPError as e:
+            return {"error": str(e), "proyectos": []}
+        except Exception:
+            return {"error": "Respuesta inesperada del SEIA, intenta de nuevo", "proyectos": []}
+
+    if not data.get("status"):
+        return {"error": "El SEIA no acepto la consulta, intenta de nuevo", "proyectos": []}
+
+    proyectos = [{
+        "titular": p.get("TITULAR", ""),
+        "proyecto": p.get("EXPEDIENTE_NOMBRE", ""),
+        "region": p.get("REGION_NOMBRE", ""),
+        "estado": p.get("ESTADO_PROYECTO", ""),
+        "inversion_mm": p.get("INVERSION_MM_FORMAT", ""),
+        "fecha": p.get("FECHA_PRESENTACION_FORMAT", ""),
+        "tipologia": p.get("DESCRIPCION_TIPOLOGIA", ""),
+        "url_ficha": p.get("EXPEDIENTE_URL_FICHA", ""),
+    } for p in data.get("data", [])]
+
+    db.log_scraping("seia", rubro, len(proyectos))
+    return {"proyectos": proyectos}
 
 
 # --- IMPORTACION CSV/EXCEL ---

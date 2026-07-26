@@ -97,6 +97,24 @@ def init_db():
             conn.cursor().execute(_schema_pg())
         else:
             conn.executescript(_schema_sqlite())
+    _migrar_columnas_nuevas()
+
+
+def _migrar_columnas_nuevas():
+    """ponytail: agrega columnas nuevas a tablas ya existentes en despliegues viejos.
+    Cada ALTER va en su propia conexion para que un 'columna ya existe' no aborte
+    las siguientes (Postgres invalida toda la transaccion tras un error)."""
+    for col, coltype in [
+        ("rubro", "TEXT DEFAULT ''"),
+        ("producto_sugerido", "TEXT DEFAULT ''"),
+        ("email_asunto", "TEXT DEFAULT ''"),
+        ("email_cuerpo", "TEXT DEFAULT ''"),
+    ]:
+        try:
+            with get_db() as conn:
+                _exec(conn, f"ALTER TABLE prospectos ADD COLUMN {col} {coltype}")
+        except Exception:
+            pass
 
 
 def _schema_pg():
@@ -128,6 +146,7 @@ def _schema_pg():
         CREATE TABLE IF NOT EXISTS prospectos (
             id SERIAL PRIMARY KEY, contacto_id INTEGER REFERENCES contactos(id) ON DELETE CASCADE,
             puntaje_ia REAL DEFAULT 0, razon TEXT DEFAULT '', estado TEXT DEFAULT 'nuevo',
+            rubro TEXT DEFAULT '', producto_sugerido TEXT DEFAULT '', email_asunto TEXT DEFAULT '', email_cuerpo TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS config_prospeccion (
             id SERIAL PRIMARY KEY, empresas_target TEXT DEFAULT '[]', keywords TEXT DEFAULT '[]',
@@ -165,6 +184,7 @@ def _schema_sqlite():
         CREATE TABLE IF NOT EXISTS prospectos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, contacto_id INTEGER REFERENCES contactos(id) ON DELETE CASCADE,
             puntaje_ia REAL DEFAULT 0, razon TEXT DEFAULT '', estado TEXT DEFAULT 'nuevo',
+            rubro TEXT DEFAULT '', producto_sugerido TEXT DEFAULT '', email_asunto TEXT DEFAULT '', email_cuerpo TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now')));
         CREATE TABLE IF NOT EXISTS config_prospeccion (
             id INTEGER PRIMARY KEY AUTOINCREMENT, empresas_target TEXT DEFAULT '[]', keywords TEXT DEFAULT '[]',
@@ -191,16 +211,35 @@ def crear_empresa(data: dict) -> int:
             return conn.execute(f"INSERT INTO empresas ({cols}) VALUES ({phs})", vals).lastrowid
 
 
-def listar_empresas(buscar: str = "", limit: int = 100, offset: int = 0):
+def listar_empresas(buscar: str = "", industria: str = "", fuente: str = "", limit: int = 100, offset: int = 0):
     like = "ILIKE" if USE_PG else "LIKE"
+    ph = "%s" if USE_PG else "?"
+    where, params = [], []
+    if buscar:
+        where.append(f"(nombre {like} {ph} OR rut {like} {ph} OR industria {like} {ph})")
+        params += [f"%{buscar}%"] * 3
+    if industria:
+        where.append(f"industria = {ph}")
+        params.append(industria)
+    if fuente:
+        where.append(f"fuente = {ph}")
+        params.append(fuente)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     with get_db() as conn:
-        if buscar:
-            q = f"SELECT * FROM empresas WHERE nombre {like} %s OR rut {like} %s OR industria {like} %s ORDER BY id DESC LIMIT %s OFFSET %s" if USE_PG else \
-                f"SELECT * FROM empresas WHERE nombre {like} ? OR rut {like} ? OR industria {like} ? ORDER BY id DESC LIMIT ? OFFSET ?"
-            return _fetchall(conn, q, (f"%{buscar}%", f"%{buscar}%", f"%{buscar}%", limit, offset))
-        q = "SELECT * FROM empresas ORDER BY id DESC LIMIT %s OFFSET %s" if USE_PG else \
-            "SELECT * FROM empresas ORDER BY id DESC LIMIT ? OFFSET ?"
-        return _fetchall(conn, q, (limit, offset))
+        q = f"SELECT * FROM empresas {where_sql} ORDER BY id DESC LIMIT {ph} OFFSET {ph}"
+        return _fetchall(conn, q, (*params, limit, offset))
+
+
+def fuentes_empresas() -> list[str]:
+    with get_db() as conn:
+        rows = _fetchall(conn, "SELECT DISTINCT fuente FROM empresas WHERE fuente != '' ORDER BY fuente")
+        return [r["fuente"] for r in rows]
+
+
+def industrias_empresas() -> list[str]:
+    with get_db() as conn:
+        rows = _fetchall(conn, "SELECT DISTINCT industria FROM empresas WHERE industria != '' ORDER BY industria")
+        return [r["industria"] for r in rows]
 
 
 def obtener_empresa(id: int):
@@ -249,18 +288,29 @@ def crear_contacto(data: dict) -> int:
             return conn.execute(f"INSERT INTO contactos ({cols}) VALUES ({phs})", vals).lastrowid
 
 
-def listar_contactos(buscar: str = "", empresa_id: int = None, limit: int = 100, offset: int = 0):
+def listar_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", limit: int = 100, offset: int = 0):
     base = "SELECT c.*, e.nombre as empresa_nombre FROM contactos c LEFT JOIN empresas e ON c.empresa_id = e.id "
     like = "ILIKE" if USE_PG else "LIKE"
     ph = "%s" if USE_PG else "?"
+    where, params = [], []
+    if empresa_id:
+        where.append(f"c.empresa_id = {ph}")
+        params.append(empresa_id)
+    if buscar:
+        where.append(f"(c.nombre {like} {ph} OR c.apellido {like} {ph} OR c.email {like} {ph} OR c.cargo {like} {ph})")
+        params += [f"%{buscar}%"] * 4
+    if fuente:
+        where.append(f"c.fuente = {ph}")
+        params.append(fuente)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     with get_db() as conn:
-        if empresa_id:
-            return _fetchall(conn, base + f"WHERE c.empresa_id = {ph} ORDER BY c.id DESC LIMIT {ph} OFFSET {ph}",
-                             (empresa_id, limit, offset))
-        if buscar:
-            return _fetchall(conn, base + f"WHERE c.nombre {like} {ph} OR c.apellido {like} {ph} OR c.email {like} {ph} OR c.cargo {like} {ph} ORDER BY c.id DESC LIMIT {ph} OFFSET {ph}",
-                             (f"%{buscar}%", f"%{buscar}%", f"%{buscar}%", f"%{buscar}%", limit, offset))
-        return _fetchall(conn, base + f"ORDER BY c.id DESC LIMIT {ph} OFFSET {ph}", (limit, offset))
+        return _fetchall(conn, base + f"{where_sql} ORDER BY c.id DESC LIMIT {ph} OFFSET {ph}", (*params, limit, offset))
+
+
+def fuentes_contactos() -> list[str]:
+    with get_db() as conn:
+        rows = _fetchall(conn, "SELECT DISTINCT fuente FROM contactos WHERE fuente != '' ORDER BY fuente")
+        return [r["fuente"] for r in rows]
 
 
 def obtener_contacto(id: int):
@@ -440,22 +490,25 @@ def empresa_existe_por_dominio(dominio: str) -> int | None:
 
 # --- PROSPECTOS ---
 
-def crear_prospecto(contacto_id: int, puntaje: float, razon: str) -> int:
+def crear_prospecto(contacto_id: int, puntaje: float, razon: str, rubro: str = "",
+                     producto_sugerido: str = "", email_asunto: str = "", email_cuerpo: str = "") -> int:
     ph = "%s" if USE_PG else "?"
+    params = (puntaje, razon, rubro, producto_sugerido, email_asunto, email_cuerpo, contacto_id)
     with get_db() as conn:
         exists = _fetchone(conn, f"SELECT 1 as x FROM prospectos WHERE contacto_id = {ph}", (contacto_id,))
         if exists:
-            _exec(conn, f"UPDATE prospectos SET puntaje_ia = {ph}, razon = {ph} WHERE contacto_id = {ph}",
-                  (puntaje, razon, contacto_id))
+            _exec(conn, f"UPDATE prospectos SET puntaje_ia = {ph}, razon = {ph}, rubro = {ph}, "
+                        f"producto_sugerido = {ph}, email_asunto = {ph}, email_cuerpo = {ph} WHERE contacto_id = {ph}",
+                  params)
             return contacto_id
+        cols = "contacto_id, puntaje_ia, razon, rubro, producto_sugerido, email_asunto, email_cuerpo"
+        vals = (contacto_id, puntaje, razon, rubro, producto_sugerido, email_asunto, email_cuerpo)
         if USE_PG:
             cur = conn.cursor()
-            cur.execute(f"INSERT INTO prospectos (contacto_id, puntaje_ia, razon) VALUES ({ph},{ph},{ph}) RETURNING id",
-                        (contacto_id, puntaje, razon))
+            cur.execute(f"INSERT INTO prospectos ({cols}) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph}) RETURNING id", vals)
             return cur.fetchone()["id"]
         else:
-            return conn.execute(f"INSERT INTO prospectos (contacto_id, puntaje_ia, razon) VALUES ({ph},{ph},{ph})",
-                                (contacto_id, puntaje, razon)).lastrowid
+            return conn.execute(f"INSERT INTO prospectos ({cols}) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph})", vals).lastrowid
 
 
 def listar_prospectos(min_puntaje: float = 0, limit: int = 100):

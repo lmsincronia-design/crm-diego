@@ -99,7 +99,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div class="card p-6">
           <h3 class="font-semibold mb-3">Empresas Target</h3>
-          <p class="text-gray-400 text-xs mb-2">Una por linea: nombre | dominio (ej: CMPC | cmpc.cl)</p>
+          <p class="text-gray-400 text-xs mb-2">Filtra por rubro para precargar empresas grandes de Chile, o escribe la tuya: nombre | dominio</p>
+          <div id="rubros-checks" class="flex flex-wrap gap-2 mb-3 text-sm"></div>
+          <button onclick="cargarEmpresasPorRubro()" class="btn btn-secondary btn-sm mb-3">+ Cargar empresas de estos rubros</button>
           <textarea id="prospeccion-empresas" rows="8" class="w-full bg-gray-50 border rounded-lg p-3 text-sm font-mono" placeholder="CMPC | cmpc.cl&#10;Arauco | arauco.cl&#10;CAP | cap.cl&#10;Codelco | codelco.com"></textarea>
         </div>
         <div class="card p-6">
@@ -166,7 +168,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
         <h2 class="text-2xl font-bold">Empresas</h2>
         <button onclick="modalEmpresa()" class="btn btn-primary">+ Nueva Empresa</button>
       </div>
-      <div class="card p-4 mb-4"><input type="text" id="buscar-empresa" placeholder="Buscar por nombre, RUT o industria..." onkeyup="debounce(loadEmpresas, 300)()"></div>
+      <div class="card p-4 mb-4 flex flex-col md:flex-row gap-3">
+        <input type="text" id="buscar-empresa" placeholder="Buscar por nombre, RUT o industria..." onkeyup="debounce(loadEmpresas, 300)()" class="flex-1">
+        <select id="filtro-empresa-rubro" onchange="loadEmpresas()"><option value="">Todos los rubros</option></select>
+        <select id="filtro-empresa-fuente" onchange="loadEmpresas()"><option value="">Todas las fuentes</option></select>
+      </div>
       <div class="card overflow-x-auto">
         <table><thead><tr><th>Nombre</th><th>RUT</th><th>Industria</th><th>Ciudad</th><th>Fuente</th><th>Acciones</th></tr></thead>
         <tbody id="tabla-empresas"></tbody></table>
@@ -179,7 +185,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
         <h2 class="text-2xl font-bold">Contactos</h2>
         <button onclick="modalContacto()" class="btn btn-primary">+ Nuevo Contacto</button>
       </div>
-      <div class="card p-4 mb-4"><input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()"></div>
+      <div class="card p-4 mb-4 flex flex-col md:flex-row gap-3">
+        <input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()" class="flex-1">
+        <select id="filtro-contacto-fuente" onchange="loadContactos()"><option value="">Todas las fuentes</option></select>
+      </div>
       <div class="card overflow-x-auto">
         <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Acciones</th></tr></thead>
         <tbody id="tabla-contactos"></tbody></table>
@@ -198,15 +207,17 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
     <!-- SCRAPING -->
     <div id="tab-scraping" class="tab-content hidden">
       <h2 class="text-2xl font-bold mb-6">Scraping & Importacion</h2>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="card p-6">
-          <h3 class="text-lg font-semibold mb-4">Buscar en Mercado Publico</h3>
-          <div class="space-y-4">
-            <input type="text" id="scrape-keyword" placeholder="Ej: repuestos forestales, rodamientos...">
-            <button onclick="scrapeMercado()" class="btn btn-primary w-full">Buscar Licitaciones</button>
-          </div>
-          <div id="scrape-results" class="mt-4"></div>
+      <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-1">Oportunidades: Licitaciones + Proyectos Nuevos</h3>
+        <p class="text-gray-500 text-sm mb-4">Combina Mercado Publico (licitaciones publicadas) con SEIA/Medio Ambiente (proyectos recien ingresados, antes de licitar). Elige un rubro y, si quieres, una palabra clave para licitaciones.</p>
+        <div class="flex flex-wrap gap-3 mb-4">
+          <select id="oportunidad-rubro" class="flex-1" style="min-width:180px"></select>
+          <input type="text" id="oportunidad-keyword" placeholder="Palabra clave para licitaciones (opcional)" class="flex-1" style="min-width:220px">
+          <button onclick="buscarOportunidades()" class="btn btn-primary">Buscar Oportunidades</button>
         </div>
+        <div id="oportunidades-results"></div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <div class="card p-6">
           <h3 class="text-lg font-semibold mb-4">Scraping de Sitio Web</h3>
           <div class="space-y-4">
@@ -215,13 +226,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
           </div>
           <div id="scrape-sitio-results" class="mt-4"></div>
         </div>
-      </div>
-      <div class="card p-6 mt-6">
-        <h3 class="text-lg font-semibold mb-4">Importar CSV / Excel</h3>
-        <p class="text-gray-500 text-sm mb-4">Columnas: empresa, nombre, apellido, cargo, email, telefono, rut, industria</p>
-        <input type="file" id="import-file" accept=".csv,.xlsx,.xls" class="mb-4">
-        <button onclick="importarArchivo()" class="btn btn-success">Importar</button>
-        <div id="import-result" class="mt-4"></div>
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold mb-4">Importar CSV / Excel</h3>
+          <p class="text-gray-500 text-sm mb-4">Columnas: empresa, nombre, apellido, cargo, email, telefono, rut, industria</p>
+          <input type="file" id="import-file" accept=".csv,.xlsx,.xls" class="mb-4">
+          <button onclick="importarArchivo()" class="btn btn-success">Importar</button>
+          <div id="import-result" class="mt-4"></div>
+        </div>
       </div>
       <div class="card p-6 mt-6">
         <h3 class="text-lg font-semibold mb-4">Historial</h3>
@@ -372,18 +383,38 @@ async function hunterImportarSeleccionados() {
 // === PROSPECCION AUTOMATICA ===
 async function loadConfigProspeccion() {
   const config = await api('/api/prospeccion/config');
-  const empresasText = (config.empresas_target || []).map(e => `${e.nombre} | ${e.dominio}`).join('\n');
+  const empresasText = (config.empresas_target || []).map(e => e.rubro ? `${e.nombre} | ${e.dominio} | ${e.rubro}` : `${e.nombre} | ${e.dominio}`).join('\n');
   document.getElementById('prospeccion-empresas').value = empresasText;
   document.getElementById('prospeccion-keywords').value = (config.keywords || []).join('\n');
   document.getElementById('prospeccion-intervalo').value = config.intervalo_horas || 6;
+  loadRubros();
   loadProspectos();
+}
+
+async function loadRubros() {
+  const rubros = await api('/api/prospeccion/rubros');
+  document.getElementById('rubros-checks').innerHTML = rubros.map(r => `
+    <label class="flex items-center gap-1 border rounded-full px-3 py-1 cursor-pointer">
+      <input type="checkbox" value="${r.rubro}" class="rubro-check"> ${r.rubro} (${r.total})
+    </label>`).join('');
+}
+
+async function cargarEmpresasPorRubro() {
+  const rubros = [...document.querySelectorAll('.rubro-check:checked')].map(el => el.value);
+  if (!rubros.length) { toast('Selecciona al menos un rubro'); return; }
+  const { empresas } = await api('/api/prospeccion/empresas-por-rubro', { method: 'POST', body: { rubros } });
+  const textarea = document.getElementById('prospeccion-empresas');
+  const existentes = new Set(textarea.value.split('\n').map(l => l.trim()).filter(Boolean));
+  const nuevas = empresas.map(e => `${e.nombre} | ${e.dominio} | ${e.rubro}`).filter(l => !existentes.has(l));
+  textarea.value = [...existentes, ...nuevas].join('\n');
+  toast(`${nuevas.length} empresas agregadas`);
 }
 
 async function guardarConfigProspeccion() {
   const empresasLines = document.getElementById('prospeccion-empresas').value.trim().split('\n').filter(Boolean);
   const empresas_target = empresasLines.map(line => {
     const parts = line.split('|').map(s => s.trim());
-    return { nombre: parts[0] || '', dominio: parts[1] || '' };
+    return { nombre: parts[0] || '', dominio: parts[1] || '', rubro: parts[2] || '' };
   });
   const keywords = document.getElementById('prospeccion-keywords').value.trim().split('\n').filter(Boolean);
   const intervalo_horas = parseInt(document.getElementById('prospeccion-intervalo').value) || 6;
@@ -416,23 +447,26 @@ async function ejecutarProspeccion() {
   loadProspectos();
 }
 
+let _prospectosData = [];
 async function loadProspectos() {
   const min = document.getElementById('prospeccion-filtro')?.value || 0;
   const data = await api('/api/prospeccion/prospectos?min_puntaje=' + min);
+  _prospectosData = data;
   if (!data.length) {
     document.getElementById('prospectos-list').innerHTML = '<p class="text-gray-400 text-center py-4">Sin prospectos aun. Configura empresas y ejecuta la prospeccion.</p>';
     return;
   }
   document.getElementById('prospectos-list').innerHTML = `
-    <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Puntaje IA</th><th>Razon</th><th>Estado</th></tr></thead><tbody>
+    <table><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Rubro / Producto</th><th>Puntaje IA</th><th>Correo</th><th>Estado</th></tr></thead><tbody>
     ${data.map(p => `
       <tr>
         <td class="font-medium">${p.nombre} ${p.apellido||''}</td>
         <td>${p.cargo||'-'}</td>
         <td>${p.email||'-'}</td>
         <td>${p.empresa_nombre||'-'}</td>
+        <td class="text-xs"><span class="badge badge-purple">${p.rubro||'-'}</span><br><span class="text-gray-400">${p.producto_sugerido||''}</span></td>
         <td><span class="badge ${p.puntaje_ia>=70?'badge-green':p.puntaje_ia>=50?'badge-yellow':'badge-blue'}">${Math.round(p.puntaje_ia)}</span></td>
-        <td class="text-xs text-gray-500">${p.razon||'-'}</td>
+        <td>${p.email_asunto ? `<button onclick="verCorreoSugerido(${p.id})" class="btn btn-secondary btn-sm">Ver correo</button>` : '-'}</td>
         <td>
           <select onchange="cambiarEstadoProspecto(${p.id}, this.value)" class="text-xs">
             <option value="nuevo" ${p.estado==='nuevo'?'selected':''}>Nuevo</option>
@@ -446,15 +480,50 @@ async function loadProspectos() {
     </tbody></table>`;
 }
 
+function verCorreoSugerido(id) {
+  const p = _prospectosData.find(x => x.id === id);
+  if (!p) return;
+  showModal(`
+    <h3 class="text-lg font-bold mb-4">Correo sugerido para ${p.nombre} ${p.apellido||''}</h3>
+    <label class="block text-sm font-medium mb-1">Asunto</label>
+    <input id="correo-asunto-view" value="${(p.email_asunto||'').replace(/"/g,'&quot;')}" readonly class="mb-3">
+    <label class="block text-sm font-medium mb-1">Cuerpo</label>
+    <textarea id="correo-cuerpo-view" rows="10" readonly class="w-full bg-gray-50 border rounded-lg p-3 text-sm">${p.email_cuerpo||''}</textarea>
+    <p class="text-gray-400 text-xs mt-2">Borrador de partida. Revisalo y editalo antes de enviarlo tu mismo.</p>
+    <div class="flex justify-end gap-3 mt-4">
+      <button onclick="closeModal()" class="btn btn-secondary">Cerrar</button>
+      <button onclick="copiarCorreoSugerido()" class="btn btn-primary">Copiar texto</button>
+    </div>`);
+}
+
+function copiarCorreoSugerido() {
+  const asunto = document.getElementById('correo-asunto-view').value;
+  const cuerpo = document.getElementById('correo-cuerpo-view').value;
+  navigator.clipboard.writeText(`Asunto: ${asunto}\n\n${cuerpo}`);
+  toast('Correo copiado');
+}
+
 async function cambiarEstadoProspecto(id, estado) {
   await api('/api/prospeccion/prospectos/' + id, { method: 'PUT', body: { estado } });
   toast('Estado actualizado');
 }
 
 // === EMPRESAS ===
+async function loadFiltrosEmpresas() {
+  const rubroSel = document.getElementById('filtro-empresa-rubro');
+  const fuenteSel = document.getElementById('filtro-empresa-fuente');
+  if (rubroSel.options.length > 1) return;
+  const [industrias, fuentes] = await Promise.all([api('/api/empresas/industrias'), api('/api/empresas/fuentes')]);
+  rubroSel.innerHTML += industrias.map(i => `<option value="${i}">${i}</option>`).join('');
+  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
 async function loadEmpresas() {
+  loadFiltrosEmpresas();
   const buscar = document.getElementById('buscar-empresa')?.value || '';
-  const data = await api('/api/empresas?buscar=' + encodeURIComponent(buscar));
+  const industria = document.getElementById('filtro-empresa-rubro')?.value || '';
+  const fuente = document.getElementById('filtro-empresa-fuente')?.value || '';
+  const data = await api(`/api/empresas?buscar=${encodeURIComponent(buscar)}&industria=${encodeURIComponent(industria)}&fuente=${encodeURIComponent(fuente)}`);
   document.getElementById('tabla-empresas').innerHTML = data.map(e => `
     <tr><td class="font-medium">${e.nombre}</td><td>${e.rut||'-'}</td><td>${e.industria||'-'}</td><td>${e.ciudad||'-'}</td>
     <td><span class="badge ${e.fuente==='apollo'?'badge-purple':'badge-blue'}">${e.fuente||'-'}</span></td>
@@ -487,9 +556,18 @@ async function guardarEmpresa(id) {
 async function eliminarEmpresa(id) { if (!confirm('Eliminar?')) return; await api('/api/empresas/'+id, {method:'DELETE'}); loadEmpresas(); toast('Eliminada'); }
 
 // === CONTACTOS ===
+async function loadFiltrosContactos() {
+  const fuenteSel = document.getElementById('filtro-contacto-fuente');
+  if (fuenteSel.options.length > 1) return;
+  const fuentes = await api('/api/contactos/fuentes');
+  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
 async function loadContactos() {
+  loadFiltrosContactos();
   const buscar = document.getElementById('buscar-contacto')?.value || '';
-  const data = await api('/api/contactos?buscar=' + encodeURIComponent(buscar));
+  const fuente = document.getElementById('filtro-contacto-fuente')?.value || '';
+  const data = await api(`/api/contactos?buscar=${encodeURIComponent(buscar)}&fuente=${encodeURIComponent(fuente)}`);
   document.getElementById('tabla-contactos').innerHTML = data.map(c => `
     <tr><td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
     <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${c.fuente||'-'}</span></td>
@@ -566,17 +644,6 @@ async function guardarDeal(id) {
 async function eliminarDeal(id) { if (!confirm('Eliminar?')) return; await api('/api/pipeline/'+id, {method:'DELETE'}); closeModal(); loadPipeline(); toast('Eliminado'); }
 
 // === SCRAPING ===
-async function scrapeMercado() {
-  const kw = document.getElementById('scrape-keyword').value;
-  if (!kw) { toast('Ingresa busqueda'); return; }
-  document.getElementById('scrape-results').innerHTML = '<p class="text-blue-600">Buscando...</p>';
-  const data = await api('/api/scraping/mercadopublico', {method:'POST', body:{keyword:kw}});
-  if (data.resultados?.length) {
-    document.getElementById('scrape-results').innerHTML = `<p class="text-green-600 mb-2">${data.total} resultados</p>
-      ${data.resultados.slice(0,20).map(r=>`<div class="border-b py-2"><div class="font-medium text-sm">${r.nombre}</div><div class="text-xs text-gray-500">${r.organismo} | ${r.estado}</div></div>`).join('')}`;
-  } else { document.getElementById('scrape-results').innerHTML = '<p class="text-gray-400">Sin resultados</p>'; }
-  loadScrapingLog();
-}
 async function scrapeSitio() {
   const url = document.getElementById('scrape-url').value;
   if (!url) { toast('Ingresa URL'); return; }
@@ -603,6 +670,67 @@ async function loadScrapingLog() {
   document.getElementById('scraping-log').innerHTML = data.map(l => `
     <tr><td><span class="badge ${l.fuente==='apollo'?'badge-purple':'badge-blue'}">${l.fuente}</span></td><td>${l.query||'-'}</td><td>${l.resultados}</td><td>${l.created_at||''}</td></tr>
   `).join('') || '<tr><td colspan="4" class="text-center text-gray-400 py-4">Sin historial</td></tr>';
+  loadOportunidadRubros();
+}
+
+async function loadOportunidadRubros() {
+  const sel = document.getElementById('oportunidad-rubro');
+  if (sel.options.length) return;
+  const rubros = await api('/api/prospeccion/rubros');
+  sel.innerHTML = rubros.map(r => `<option value="${r.rubro}">${r.rubro}</option>`).join('');
+}
+
+let _oportunidadesData = [];
+async function buscarOportunidades() {
+  const rubro = document.getElementById('oportunidad-rubro').value;
+  const kw = document.getElementById('oportunidad-keyword').value.trim();
+  document.getElementById('oportunidades-results').innerHTML = '<p class="text-blue-600">Buscando en Mercado Publico y SEIA...</p>';
+
+  const [seia, mp] = await Promise.all([
+    api('/api/scraping/seia', {method:'POST', body:{rubro}}),
+    kw ? api('/api/scraping/mercadopublico', {method:'POST', body:{keyword:kw}}) : Promise.resolve({resultados:[]}),
+  ]);
+
+  _oportunidadesData = [
+    ...(seia.proyectos||[]).map(p => ({fuente:'SEIA', titular:p.titular, detalle:p.proyecto, ubicacion:p.region,
+      estado:p.estado, monto:p.inversion_mm?`US$${p.inversion_mm}MM`:'-', fecha:p.fecha, url:p.url_ficha})),
+    ...(mp.resultados||[]).map(r => ({fuente:'Mercado Publico', titular:r.organismo, detalle:r.nombre, ubicacion:'-',
+      estado:r.estado||'-', monto:r.monto?`$${r.monto}`:'-', fecha:r.fecha_cierre||'-', url:''})),
+  ];
+
+  const errores = [seia.error, mp.error].filter(Boolean);
+  let html = errores.length ? `<p class="text-orange-500 text-sm mb-3">${errores.join(' &middot; ')}</p>` : '';
+
+  if (!_oportunidadesData.length) {
+    html += '<p class="text-gray-400">Sin oportunidades encontradas</p>';
+  } else {
+    html += `<table><thead><tr><th>Fuente</th><th>Fecha</th><th>Empresa/Organismo</th><th>Detalle</th><th>Ubicacion</th><th>Monto</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${_oportunidadesData.map((o,i) => `
+        <tr>
+          <td><span class="badge ${o.fuente==='SEIA'?'badge-purple':'badge-blue'}">${o.fuente}</span></td>
+          <td class="text-xs">${o.fecha}</td>
+          <td class="font-medium">${o.titular}</td>
+          <td class="text-xs">${o.url?`<a href="${o.url}" target="_blank" class="text-blue-600 hover:underline">${o.detalle}</a>`:o.detalle}</td>
+          <td class="text-xs">${o.ubicacion}</td>
+          <td class="text-xs">${o.monto}</td>
+          <td><span class="badge badge-blue">${o.estado}</span></td>
+          <td><button onclick="agregarEmpresaOportunidad(${i})" class="btn btn-secondary btn-sm">+ Empresa</button></td>
+        </tr>
+      `).join('')}
+      </tbody></table>`;
+  }
+  document.getElementById('oportunidades-results').innerHTML = html;
+  loadScrapingLog();
+}
+
+async function agregarEmpresaOportunidad(i) {
+  const o = _oportunidadesData[i];
+  const rubro = document.getElementById('oportunidad-rubro').value;
+  await api('/api/empresas', {method:'POST', body:{
+    nombre: o.titular, industria: rubro, fuente: o.fuente === 'SEIA' ? 'seia' : 'mercadopublico',
+    notas: `${o.fuente}: ${o.detalle} (${o.fecha}, ${o.estado}, ${o.monto})`,
+  }});
+  toast(`${o.titular} agregada a Empresas`);
 }
 
 // === EMAIL ===
