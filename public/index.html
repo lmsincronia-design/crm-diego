@@ -63,8 +63,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
     <h1 class="text-xl font-bold mb-1">CRM Diego</h1>
     <p class="text-gray-500 text-sm mb-6">Repuestos Industriales</p>
     <div class="space-y-4">
-      <div><label class="block text-sm font-medium mb-1">Email</label><input id="login-email" type="email" placeholder="tu@email.com"></div>
-      <div><label class="block text-sm font-medium mb-1">Contraseña</label><input id="login-password" type="password" placeholder="••••••••"></div>
+      <div><label class="block text-sm font-medium mb-1">Email</label><input id="login-email" type="email" placeholder="tu@email.com" autocapitalize="off" autocorrect="off"></div>
+      <div><label class="block text-sm font-medium mb-1">Contraseña</label>
+        <div class="flex gap-2">
+          <input id="login-password" type="password" placeholder="••••••••" autocapitalize="off" autocorrect="off" style="flex:1">
+          <button type="button" onclick="togglePassword()" class="btn btn-secondary" style="padding:8px 12px">👁</button>
+        </div>
+      </div>
       <div id="login-error" class="text-red-500 text-sm hidden"></div>
       <button onclick="hacerLogin()" class="btn btn-primary w-full">Iniciar Sesión</button>
     </div>
@@ -310,13 +315,23 @@ async function hacerLogin() {
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
   errEl.classList.add('hidden');
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    errEl.textContent = 'Email o contraseña incorrectos';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      errEl.textContent = error.message + ' (' + (error.code || error.status) + ')';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    await mostrarApp();
+  } catch (e) {
+    errEl.textContent = 'Error inesperado: ' + e.message;
     errEl.classList.remove('hidden');
-    return;
   }
-  mostrarApp();
+}
+
+function togglePassword() {
+  const input = document.getElementById('login-password');
+  input.type = input.type === 'password' ? 'text' : 'password';
 }
 
 async function hacerLogout() {
