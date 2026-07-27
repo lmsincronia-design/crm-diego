@@ -319,7 +319,7 @@ if PUBLIC_DIR.exists():
 
 @app.get("/")
 def root():
-    return FileResponse(str(PUBLIC_DIR / "index.html"))
+    return FileResponse(str(PUBLIC_DIR / "index.html"), headers={"Cache-Control": "no-store"})
 
 
 if __name__ == "__main__":
