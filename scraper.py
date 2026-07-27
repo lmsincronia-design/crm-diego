@@ -372,6 +372,44 @@ async def buscar_seia(rubro: str, limit: int = 20) -> dict:
     return {"proyectos": proyectos}
 
 
+async def obtener_contacto_seia(url_ficha: str) -> dict:
+    """Extrae la seccion 'Informacion de Contacto' de la ficha de un proyecto SEIA:
+    Titular (la empresa), Representante Legal, Empresa Consultora Ambiental y
+    Consultor/a -- cada uno con nombre/domicilio/ciudad/telefono/email cuando
+    esten disponibles. Esta es la fuente real de correos y nombres por proyecto
+    que pidio Diego, no hace falta parsear los PDF de los expedientes.
+    """
+    async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as client:
+        try:
+            resp = await client.get(url_ficha)
+        except httpx.HTTPError as e:
+            return {"error": str(e)}
+
+    try:
+        soup = BeautifulSoup(resp.content.decode("iso-8859-1"), "html.parser")
+    except Exception:
+        return {"error": "No se pudo leer la ficha"}
+
+    secciones = {}
+    for item in soup.select(".accordion-item"):
+        header = item.select_one(".accordion-button")
+        if not header:
+            continue
+        tipo = header.get_text(strip=True)
+        datos = {}
+        for row in item.select(".row.sg-row-file-description"):
+            cols = row.select(":scope > div")
+            if len(cols) >= 2:
+                label = cols[0].get_text(strip=True)
+                valor = cols[1].get_text(strip=True)
+                if valor:
+                    datos[label] = valor
+        if datos:
+            secciones[tipo] = datos
+
+    return {"contacto": secciones}
+
+
 # --- IMPORTACION CSV/EXCEL ---
 
 def importar_csv(contenido: bytes, fuente: str = "csv") -> dict:
