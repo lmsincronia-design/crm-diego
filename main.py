@@ -302,6 +302,13 @@ async def scrape_seia(data: dict):
         return {"error": "Falta rubro"}
     return await scraper.buscar_seia(rubro)
 
+@app.post("/api/scraping/seia/contacto")
+async def scrape_seia_contacto(data: dict):
+    url_ficha = data.get("url_ficha", "")
+    if not url_ficha:
+        return {"error": "Falta url_ficha"}
+    return await scraper.obtener_contacto_seia(url_ficha)
+
 
 # --- STATIC FILES ---
 

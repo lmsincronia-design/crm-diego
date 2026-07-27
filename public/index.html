@@ -844,7 +844,10 @@ async function buscarOportunidades() {
           <td class="text-xs">${o.ubicacion}</td>
           <td class="text-xs">${o.monto}</td>
           <td><span class="badge badge-blue">${o.estado}</span></td>
-          <td><button onclick="agregarEmpresaOportunidad(${i})" class="btn btn-secondary btn-sm">+ Empresa</button></td>
+          <td class="flex gap-1">
+            <button onclick="agregarEmpresaOportunidad(${i})" class="btn btn-secondary btn-sm">+ Empresa</button>
+            ${o.fuente==='SEIA'?`<button onclick="verContactoSeia(${i})" class="btn btn-apollo btn-sm">Ver Contacto</button>`:''}
+          </td>
         </tr>
       `).join('')}
       </tbody></table>`;
@@ -861,6 +864,63 @@ async function agregarEmpresaOportunidad(i) {
     notas: `${o.fuente}: ${o.detalle} (${o.fecha}, ${o.estado}, ${o.monto})`,
   }});
   toast(`${o.titular} agregada a Empresas`);
+}
+
+async function verContactoSeia(i) {
+  const o = _oportunidadesData[i];
+  if (!o.url) { toast('Sin ficha disponible'); return; }
+  showModal(`<h3 class="text-xl font-bold mb-4">Contacto: ${o.titular}</h3><p class="text-blue-600">Cargando ficha...</p>`);
+  const data = await api('/api/scraping/seia/contacto', {method:'POST', body:{url_ficha: o.url}});
+  const secciones = data.contacto || {};
+  if (data.error || !Object.keys(secciones).length) {
+    showModal(`<h3 class="text-xl font-bold mb-4">Contacto: ${o.titular}</h3>
+      <p class="text-gray-400">${data.error || 'La ficha no tiene informacion de contacto publicada.'}</p>
+      <div class="flex justify-end mt-4"><button onclick="closeModal()" class="btn btn-secondary">Cerrar</button></div>`);
+    return;
+  }
+  window._seiaSecciones = secciones;
+  window._seiaTitularNombre = o.titular;
+  window._seiaRubro = document.getElementById('oportunidad-rubro').value;
+  const html = Object.entries(secciones).map(([tipo, campos]) => `
+    <div class="card p-4 mb-3">
+      <div class="flex justify-between items-start gap-3">
+        <div>
+          <h4 class="font-bold">${tipo}</h4>
+          ${Object.entries(campos).map(([k,v]) => `<div class="text-xs"><span class="text-gray-400">${k}:</span> ${v}</div>`).join('')}
+        </div>
+        ${campos['Nombre'] ? `<button onclick="importarContactoSeia('${tipo}')" class="btn btn-secondary btn-sm shrink-0">+ CRM</button>` : ''}
+      </div>
+    </div>`).join('');
+  showModal(`<h3 class="text-xl font-bold mb-4">Contacto: ${o.titular}</h3>${html}
+    <div class="flex justify-end mt-4"><button onclick="closeModal()" class="btn btn-secondary">Cerrar</button></div>`);
+}
+
+async function importarContactoSeia(tipo) {
+  const campos = window._seiaSecciones[tipo];
+  const esTitularOLegal = (tipo === 'Titular' || tipo === 'Representante Legal');
+  const nombreEmpresa = esTitularOLegal ? window._seiaTitularNombre
+    : (window._seiaSecciones['Empresa Consultora Ambiental']?.Nombre || campos['Nombre']);
+
+  const existentes = await api('/api/empresas?buscar=' + encodeURIComponent(nombreEmpresa));
+  let empresaId = existentes.find(e => e.nombre === nombreEmpresa)?.id;
+  if (!empresaId) {
+    const nueva = await api('/api/empresas', {method:'POST', body:{
+      nombre: nombreEmpresa, industria: window._seiaRubro, fuente: 'seia',
+      direccion: campos['Domicilio'] || '', ciudad: campos['Ciudad'] || '',
+    }});
+    empresaId = nueva.id;
+  }
+
+  if (tipo === 'Titular') {
+    toast(`Empresa ${nombreEmpresa} guardada`);
+    return;
+  }
+
+  await api('/api/contactos', {method:'POST', body:{
+    empresa_id: empresaId, nombre: campos['Nombre'] || '', cargo: tipo,
+    email: campos['E-mail'] || '', telefono: campos['Teléfono'] || '', fuente: 'seia',
+  }});
+  toast(`${campos['Nombre']} agregado a Contactos`);
 }
 
 // === EMAIL ===
