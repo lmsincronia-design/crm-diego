@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM Diego - Repuestos Industriales</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
+#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
+#login-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 2.5rem; width: 100%; max-width: 380px; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; }
 .tab-active { background: #1e40af; color: white; }
 .tab-btn { transition: all 0.2s; }
@@ -55,6 +58,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
 </head>
 <body>
 
+<div id="login-screen" class="hidden">
+  <div id="login-card">
+    <h1 class="text-xl font-bold mb-1">CRM Diego</h1>
+    <p class="text-gray-500 text-sm mb-6">Repuestos Industriales</p>
+    <div class="space-y-4">
+      <div><label class="block text-sm font-medium mb-1">Email</label><input id="login-email" type="email" placeholder="tu@email.com"></div>
+      <div><label class="block text-sm font-medium mb-1">Contraseña</label><input id="login-password" type="password" placeholder="••••••••"></div>
+      <div id="login-error" class="text-red-500 text-sm hidden"></div>
+      <button onclick="hacerLogin()" class="btn btn-primary w-full">Iniciar Sesión</button>
+    </div>
+  </div>
+</div>
+
+<div id="app-container" class="hidden">
 <div class="flex h-screen">
   <!-- Sidebar -->
   <aside class="w-64 bg-gray-900 text-white flex flex-col" style="min-width:220px">
@@ -72,6 +89,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
       <button onclick="showTab('scraping')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="scraping">&#128269; Scraping</button>
       <button onclick="showTab('email')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="email">&#9993; Email</button>
     </nav>
+    <div class="p-4 border-t border-gray-700">
+      <button onclick="hacerLogout()" class="tab-btn w-full text-left px-4 py-3 rounded-lg text-gray-400">&#128682; Cerrar Sesión</button>
+    </div>
   </aside>
 
   <main class="flex-1 overflow-y-auto p-8" id="main">
@@ -266,11 +286,53 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
 
   </main>
 </div>
+</div>
 
 <div id="modal-container"></div>
 <div id="toast-container"></div>
 
 <script>
+const SUPABASE_URL = 'https://zjjpdyfgewujjyehyhnt.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqanBkeWZnZXd1amp5ZWh5aG50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNjE5NDEsImV4cCI6MjEwMDczNzk0MX0.Ou1AAwZHQlKiQGJjU2XamZjeK8H70fdttQa7ktEhWpE';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    mostrarApp();
+  } else {
+    document.getElementById('login-screen').classList.remove('hidden');
+  }
+}
+
+async function hacerLogin() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    errEl.textContent = 'Email o contraseña incorrectos';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  mostrarApp();
+}
+
+async function hacerLogout() {
+  await sb.auth.signOut();
+  document.getElementById('app-container').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+function mostrarApp() {
+  document.getElementById('login-error').classList.add('hidden');
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-container').classList.remove('hidden');
+  loadDashboard();
+}
+
 let _debounceTimers = {};
 let _hunterResults = [];
 let _hunterEmpresa = '';
@@ -284,7 +346,9 @@ function toast(msg, dur = 3000) {
   document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), dur);
 }
 async function api(path, opts = {}) {
+  const { data: { session } } = await sb.auth.getSession();
   const cfg = { headers: {'Content-Type':'application/json'}, ...opts };
+  if (session) cfg.headers['Authorization'] = `Bearer ${session.access_token}`;
   if (cfg.body && typeof cfg.body === 'object' && !(cfg.body instanceof FormData)) cfg.body = JSON.stringify(cfg.body);
   if (cfg.body instanceof FormData) delete cfg.headers['Content-Type'];
   return (await fetch(path, cfg)).json();
@@ -789,7 +853,8 @@ async function importarArchivo() {
   if (!input.files.length) { toast('Selecciona archivo'); return; }
   const fd = new FormData(); fd.append('file', input.files[0]);
   document.getElementById('import-result').innerHTML = '<p class="text-blue-600">Importando...</p>';
-  const data = await (await fetch('/api/importar/csv', {method:'POST', body:fd})).json();
+  const { data: { session } } = await sb.auth.getSession();
+  const data = await (await fetch('/api/importar/csv', {method:'POST', body:fd, headers: session ? {'Authorization': `Bearer ${session.access_token}`} : {}})).json();
   document.getElementById('import-result').innerHTML = `<div class="bg-green-50 border border-green-200 rounded-lg p-4">
     <p class="font-medium text-green-800">Importacion completada</p>
     <p class="text-sm text-green-600">${data.empresas_creadas} empresas y ${data.contactos_creados} contactos</p></div>`;
@@ -1025,7 +1090,7 @@ async function enviarCampana(id) {
   toast(`Enviados: ${res.enviados}, Errores: ${res.errores}`); loadCampanas();
 }
 
-loadDashboard();
+initAuth();
 </script>
 </body>
 </html>

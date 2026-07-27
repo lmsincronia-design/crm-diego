@@ -10,8 +10,10 @@ import scraper
 import emailer
 import prospector
 import sheets_sync
+from auth import AuthMiddleware
 
 app = FastAPI(title="CRM Diego - Repuestos Industriales")
+app.add_middleware(AuthMiddleware)
 
 PUBLIC_DIR = Path(__file__).parent / "public"
 
