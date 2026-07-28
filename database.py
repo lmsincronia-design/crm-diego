@@ -317,8 +317,10 @@ def crear_contacto(data: dict) -> int:
             return conn.execute(f"INSERT INTO contactos ({cols}) VALUES ({phs})", vals).lastrowid
 
 
-def listar_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", limit: int = 100, offset: int = 0):
-    base = "SELECT c.*, e.nombre as empresa_nombre FROM contactos c LEFT JOIN empresas e ON c.empresa_id = e.id "
+def listar_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", calificado: str = "",
+                      limit: int = 100, offset: int = 0):
+    base = ("SELECT c.*, e.nombre as empresa_nombre, p.puntaje_ia FROM contactos c "
+            "LEFT JOIN empresas e ON c.empresa_id = e.id LEFT JOIN prospectos p ON p.contacto_id = c.id ")
     like = "ILIKE" if USE_PG else "LIKE"
     ph = "%s" if USE_PG else "?"
     where, params = [], []
@@ -331,6 +333,10 @@ def listar_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "",
     if fuente:
         where.append(f"c.fuente = {ph}")
         params.append(fuente)
+    if calificado == "si":
+        where.append("p.puntaje_ia >= 50")
+    elif calificado == "no":
+        where.append("(p.puntaje_ia IS NULL OR p.puntaje_ia < 50)")
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     with get_db() as conn:
         return _fetchall(conn, base + f"{where_sql} ORDER BY c.id DESC LIMIT {ph} OFFSET {ph}", (*params, limit, offset))

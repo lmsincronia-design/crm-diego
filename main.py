@@ -70,8 +70,9 @@ def delete_empresa(id: int):
 # --- CONTACTOS ---
 
 @app.get("/api/contactos")
-def list_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", limit: int = 100, offset: int = 0):
-    return db.listar_contactos(buscar, empresa_id, fuente, limit, offset)
+def list_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", calificado: str = "",
+                    limit: int = 100, offset: int = 0):
+    return db.listar_contactos(buscar, empresa_id, fuente, calificado, limit, offset)
 
 @app.get("/api/contactos/fuentes")
 def get_fuentes_contactos():

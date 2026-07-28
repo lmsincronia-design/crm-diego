@@ -218,13 +218,18 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
         <h2 class="text-2xl font-bold">Contactos</h2>
         <button onclick="modalContacto()" class="btn btn-primary">+ Nuevo Contacto</button>
       </div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button onclick="filtrarContactosCalificado('')" class="btn btn-sm filtro-calificado-btn" data-val="">Todos</button>
+        <button onclick="filtrarContactosCalificado('si')" class="btn btn-sm filtro-calificado-btn" data-val="si">✓ Calificados IA</button>
+        <button onclick="filtrarContactosCalificado('no')" class="btn btn-sm filtro-calificado-btn" data-val="no">Sin calificar / crudos</button>
+      </div>
       <div class="card p-4 mb-4 flex flex-col md:flex-row gap-3">
         <input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()" class="flex-1">
         <select id="filtro-contacto-fuente" onchange="loadContactos()"><option value="">Todas las fuentes</option></select>
       </div>
       <div id="contactos-seleccion-bar" class="mb-4 hidden"></div>
       <div class="card overflow-x-auto">
-        <table><thead><tr><th><input type="checkbox" onchange="contactoToggleAll(this.checked)"></th><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Acciones</th></tr></thead>
+        <table><thead><tr><th><input type="checkbox" onchange="contactoToggleAll(this.checked)"></th><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Fuente</th><th>Puntaje IA</th><th>Acciones</th></tr></thead>
         <tbody id="tabla-contactos"></tbody></table>
       </div>
     </div>
@@ -696,11 +701,18 @@ async function loadFiltrosContactos() {
   fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${f}</option>`).join('');
 }
 
+let _filtroContactoCalificado = '';
+function filtrarContactosCalificado(val) {
+  _filtroContactoCalificado = val;
+  document.querySelectorAll('.filtro-calificado-btn').forEach(b => b.classList.toggle('btn-primary', b.dataset.val === val));
+  loadContactos();
+}
+
 async function loadContactos() {
   loadFiltrosContactos();
   const buscar = document.getElementById('buscar-contacto')?.value || '';
   const fuente = document.getElementById('filtro-contacto-fuente')?.value || '';
-  const data = await api(`/api/contactos?buscar=${encodeURIComponent(buscar)}&fuente=${encodeURIComponent(fuente)}`);
+  const data = await api(`/api/contactos?buscar=${encodeURIComponent(buscar)}&fuente=${encodeURIComponent(fuente)}&calificado=${_filtroContactoCalificado}`);
   _contactosData = data;
   _contactosSeleccionados.clear();
   actualizarBarraSeleccion();
@@ -708,9 +720,10 @@ async function loadContactos() {
     <tr><td><input type="checkbox" class="contacto-check" data-id="${c.id}" onchange="contactoToggle(${c.id}, this.checked)" ${c.email?'':'disabled'}></td>
     <td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
     <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${c.fuente||'-'}</span></td>
+    <td>${c.puntaje_ia!=null?`<span class="badge ${c.puntaje_ia>=50?'badge-green':'badge-yellow'}">${c.puntaje_ia}</span>`:'-'}</td>
     <td><button onclick="modalContacto(${c.id})" class="btn btn-secondary btn-sm">Editar</button>
     <button onclick="eliminarContacto(${c.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
-  `).join('') || '<tr><td colspan="7" class="text-center text-gray-400 py-8">Sin contactos</td></tr>';
+  `).join('') || '<tr><td colspan="8" class="text-center text-gray-400 py-8">Sin contactos</td></tr>';
 }
 
 let _contactosData = [];
