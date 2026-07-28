@@ -97,7 +97,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
     <nav class="flex-1 p-4 space-y-1" id="nav">
       <button onclick="showTab('dashboard')" class="tab-btn w-full text-left px-4 py-3 rounded-lg tab-active" data-tab="dashboard">&#128202; Dashboard</button>
       <button onclick="showTab('prospeccion')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="prospeccion">&#129302; Prospeccion</button>
-      <button onclick="showTab('hunter')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="hunter">&#128640; Hunter.io</button>
+      <button onclick="showTab('hunter')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="hunter">&#128640; Buscador de Contactos</button>
       <button onclick="showTab('empresas')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="empresas">&#127970; Empresas</button>
       <button onclick="showTab('contactos')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="contactos">&#128101; Contactos</button>
       <button onclick="showTab('pipeline')" class="tab-btn w-full text-left px-4 py-3 rounded-lg" data-tab="pipeline">&#128200; Pipeline</button>
@@ -183,7 +183,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
     <div id="tab-hunter" class="tab-content hidden">
       <div class="flex justify-between items-center mb-6">
         <div>
-          <h2 class="text-2xl font-bold">Hunter.io - Busqueda de Emails por Empresa</h2>
+          <h2 class="text-2xl font-bold">Buscador de Contactos por Empresa</h2>
           <p class="text-gray-500 mt-1">Ingresa el dominio web de la empresa (ej: cmpc.cl) y encuentra todos los emails publicos con nombre y cargo</p>
         </div>
       </div>
@@ -198,7 +198,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
             <button onclick="hunterBuscar()" class="btn btn-apollo w-full">&#128640; Buscar Emails</button>
           </div>
         </div>
-        <p class="text-gray-400 text-xs">25 busquedas gratis por mes. Cada busqueda muestra hasta 20 contactos con email, nombre y cargo.</p>
+        <p class="text-gray-400 text-xs">Cupo mensual limitado. Cada busqueda muestra hasta 20 contactos con email, nombre y cargo.</p>
       </div>
 
       <div id="hunter-results"></div>
@@ -376,6 +376,10 @@ let _hunterDominio = '';
 function debounce(fn, ms) {
   return function() { clearTimeout(_debounceTimers[fn.name]); _debounceTimers[fn.name] = setTimeout(fn, ms); };
 }
+const FUENTE_LABELS = { hunter: 'Buscador de Contactos', apollo: 'Apollo', web: 'Sitio Web', csv: 'Importado', excel: 'Importado',
+  seia: 'SEIA', seia_profundo: 'SEIA (profundo)', mercadopublico: 'Mercado Publico', prospeccion: 'Prospeccion Auto' };
+function fuenteLabel(f) { return FUENTE_LABELS[f] || f || '-'; }
+
 function toast(msg, dur = 3000) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
   document.getElementById('toast-container').appendChild(el); setTimeout(() => el.remove(), dur);
@@ -558,7 +562,7 @@ async function ejecutarProspeccion() {
   const btn = document.getElementById('btn-prospectar');
   btn.disabled = true;
   btn.textContent = 'Buscando...';
-  document.getElementById('prospeccion-status').innerHTML = '<div class="card p-6 text-center"><div class="text-purple-600 text-lg font-medium">Buscando contactos en todas las fuentes...</div><p class="text-gray-400 mt-2">Hunter.io + Mercado Publico + Scraping Web + Filtro IA</p></div>';
+  document.getElementById('prospeccion-status').innerHTML = '<div class="card p-6 text-center"><div class="text-purple-600 text-lg font-medium">Buscando contactos en todas las fuentes...</div><p class="text-gray-400 mt-2">Buscador de Contactos + Mercado Publico + Scraping Web + Filtro IA</p></div>';
   const data = await api('/api/prospeccion/ejecutar', { method: 'POST' });
   btn.disabled = false;
   btn.textContent = '⚡ Ejecutar Ahora';
@@ -571,7 +575,7 @@ async function ejecutarProspeccion() {
     <div class="card p-6">
       <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center mb-4">
         <div><div class="text-2xl font-bold text-purple-600">${data.total_raw||0}</div><div class="text-xs text-gray-500">Encontrados</div></div>
-        <div><div class="text-2xl font-bold text-blue-600">${data.hunter||0}</div><div class="text-xs text-gray-500">Hunter.io</div></div>
+        <div><div class="text-2xl font-bold text-blue-600">${data.hunter||0}</div><div class="text-xs text-gray-500">Buscador de Contactos</div></div>
         <div><div class="text-2xl font-bold text-green-600">${data.mercadopublico||0}</div><div class="text-xs text-gray-500">Mercado Publico</div></div>
         <div><div class="text-2xl font-bold text-yellow-600">${data.nuevos||0}</div><div class="text-xs text-gray-500">Nuevos (sin duplicados)</div></div>
         <div><div class="text-2xl font-bold text-red-600">${data.calificados||0}</div><div class="text-xs text-gray-500">Calificados IA</div></div>
@@ -662,7 +666,7 @@ async function loadFiltrosEmpresas() {
   if (rubroSel.options.length > 1) return;
   const [industrias, fuentes] = await Promise.all([api('/api/empresas/industrias'), api('/api/empresas/fuentes')]);
   rubroSel.innerHTML += industrias.map(i => `<option value="${i}">${i}</option>`).join('');
-  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${f}</option>`).join('');
+  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${fuenteLabel(f)}</option>`).join('');
 }
 
 async function loadEmpresas() {
@@ -673,7 +677,7 @@ async function loadEmpresas() {
   const data = await api(`/api/empresas?buscar=${encodeURIComponent(buscar)}&industria=${encodeURIComponent(industria)}&fuente=${encodeURIComponent(fuente)}`);
   document.getElementById('tabla-empresas').innerHTML = data.map(e => `
     <tr><td class="font-medium">${e.nombre}</td><td>${e.rut||'-'}</td><td>${e.industria||'-'}</td><td>${e.ciudad||'-'}</td>
-    <td><span class="badge ${e.fuente==='apollo'?'badge-purple':'badge-blue'}">${e.fuente||'-'}</span></td>
+    <td><span class="badge ${e.fuente==='apollo'?'badge-purple':'badge-blue'}">${fuenteLabel(e.fuente)}</span></td>
     <td><button onclick="modalEmpresa(${e.id})" class="btn btn-secondary btn-sm">Editar</button>
     <button onclick="eliminarEmpresa(${e.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
   `).join('') || '<tr><td colspan="6" class="text-center text-gray-400 py-8">Sin empresas</td></tr>';
@@ -707,7 +711,7 @@ async function loadFiltrosContactos() {
   const fuenteSel = document.getElementById('filtro-contacto-fuente');
   if (fuenteSel.options.length > 1) return;
   const fuentes = await api('/api/contactos/fuentes');
-  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${f}</option>`).join('');
+  fuenteSel.innerHTML += fuentes.map(f => `<option value="${f}">${fuenteLabel(f)}</option>`).join('');
 }
 
 let _filtroContactoCalificado = '';
@@ -728,7 +732,7 @@ async function loadContactos() {
   document.getElementById('tabla-contactos').innerHTML = data.map(c => `
     <tr><td><input type="checkbox" class="contacto-check" data-id="${c.id}" onchange="contactoToggle(${c.id}, this.checked)" ${c.email?'':'disabled'}></td>
     <td class="font-medium">${c.nombre} ${c.apellido||''}</td><td>${c.cargo||'-'}</td><td>${c.email||'-'}</td>
-    <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${c.fuente||'-'}</span></td>
+    <td>${c.empresa_nombre||'-'}</td><td><span class="badge ${c.fuente==='apollo'?'badge-purple':'badge-green'}">${fuenteLabel(c.fuente)}</span></td>
     <td>${c.puntaje_ia!=null?`<span class="badge ${c.puntaje_ia>=50?'badge-green':'badge-yellow'}">${c.puntaje_ia}</span>`:'-'}</td>
     <td><button onclick="modalContacto(${c.id})" class="btn btn-secondary btn-sm">Editar</button>
     <button onclick="eliminarContacto(${c.id})" class="btn btn-danger btn-sm ml-1">X</button></td></tr>
@@ -931,7 +935,7 @@ async function importarArchivo() {
 async function loadScrapingLog() {
   const data = await api('/api/scraping/log');
   document.getElementById('scraping-log').innerHTML = data.map(l => `
-    <tr><td><span class="badge ${l.fuente==='apollo'?'badge-purple':'badge-blue'}">${l.fuente}</span></td><td>${l.query||'-'}</td><td>${l.resultados}</td><td>${l.created_at||''}</td></tr>
+    <tr><td><span class="badge ${l.fuente==='apollo'?'badge-purple':'badge-blue'}">${fuenteLabel(l.fuente)}</span></td><td>${l.query||'-'}</td><td>${l.resultados}</td><td>${l.created_at||''}</td></tr>
   `).join('') || '<tr><td colspan="4" class="text-center text-gray-400 py-4">Sin historial</td></tr>';
   loadOportunidadRubros();
 }
@@ -991,7 +995,7 @@ async function buscarOportunidades() {
 
 async function buscarOportunidadesProfundo() {
   const rubro = document.getElementById('oportunidad-rubro').value;
-  const maxStr = prompt('¿Cuantos proyectos revisar a fondo? (1 busqueda de Hunter.io por proyecto)', '5');
+  const maxStr = prompt('¿Cuantos proyectos revisar a fondo? (1 busqueda por proyecto)', '5');
   if (!maxStr) return;
   const max_proyectos = parseInt(maxStr) || 5;
   const box = document.getElementById('oportunidades-profundo-results');
@@ -1003,7 +1007,7 @@ async function buscarOportunidadesProfundo() {
   const calificados = (r.evaluados||[]).filter(e => e.calificado);
   box.innerHTML = `
     <div class="card p-4 bg-gray-50">
-      <p class="font-semibold">${r.proyectos_revisados} proyectos revisados &middot; ${r.dominios_consultados.length} empresas consultadas en Hunter &middot; ${r.nuevos} contactos nuevos &middot; <span class="text-green-600">${r.calificados} calificados</span></p>
+      <p class="font-semibold">${r.proyectos_revisados} proyectos revisados &middot; ${r.dominios_consultados.length} empresas consultadas &middot; ${r.nuevos} contactos nuevos &middot; <span class="text-green-600">${r.calificados} calificados</span></p>
       ${calificados.length ? `<table class="mt-3"><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Puntaje</th></tr></thead><tbody>
         ${calificados.map(c => `<tr><td>${c.nombre} ${c.apellido}</td><td class="text-xs">${c.cargo}</td><td class="text-xs">${c.email}</td><td>${c.empresa}</td><td>${c.puntaje_ia}</td></tr>`).join('')}
       </tbody></table><p class="text-xs text-gray-400 mt-2">Ya quedaron guardados como Prospectos Calificados y sincronizados al Sheets.</p>` : '<p class="text-gray-400 mt-2">Ninguno califico esta vez.</p>'}
