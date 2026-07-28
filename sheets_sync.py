@@ -21,6 +21,8 @@ CONTACTOS_HEADERS = ["id", "empresa_nombre", "nombre", "apellido", "cargo", "ema
                       "telefono", "linkedin_url", "fuente", "notas", "created_at"]
 EVALUACIONES_HEADERS = ["id", "empresa", "rubro", "nombre", "apellido", "cargo", "email",
                          "puntaje_ia", "razon_ia", "calificado", "created_at"]
+OPORTUNIDADES_HEADERS = ["id", "fuente", "query", "nombre", "organismo", "region", "monto",
+                          "estado", "fecha", "url_ficha", "created_at"]
 
 
 def _cliente():
@@ -51,13 +53,16 @@ def sincronizar() -> dict:
         empresas = db.listar_empresas(limit=100000)
         contactos = db.listar_contactos(limit=100000)
         evaluaciones = db.listar_evaluaciones_ia(limit=100000)
+        oportunidades = db.listar_oportunidades(limit=100000)
         _escribir_hoja(sh, "Empresas", EMPRESAS_HEADERS, empresas)
         _escribir_hoja(sh, "Contactos", CONTACTOS_HEADERS, contactos)
         _escribir_hoja(sh, "Todos_Evaluados", EVALUACIONES_HEADERS, evaluaciones)
+        _escribir_hoja(sh, "Oportunidades", OPORTUNIDADES_HEADERS, oportunidades)
     except Exception as e:
         return {"error": f"Error sincronizando con Google Sheets: {e}"}
 
-    return {"empresas": len(empresas), "contactos": len(contactos), "evaluados": len(evaluaciones)}
+    return {"empresas": len(empresas), "contactos": len(contactos), "evaluados": len(evaluaciones),
+            "oportunidades": len(oportunidades)}
 
 
 def _escribir_hoja(sh, nombre, headers, filas):

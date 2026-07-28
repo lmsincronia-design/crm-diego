@@ -376,13 +376,6 @@ async def ejecutar_prospeccion() -> dict:
         )
 
     db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", resumen["calificados"])
-
-    # ponytail: si Google Sheets no esta configurado o falla, no debe romper
-    # la prospeccion -- es un extra, no el flujo principal.
-    try:
-        import sheets_sync
-        sheets_sync.sincronizar()
-    except Exception:
-        pass
+    scraper._sync_sheets_silencioso()
 
     return resumen

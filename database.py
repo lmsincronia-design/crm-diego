@@ -160,6 +160,10 @@ def _schema_pg():
         CREATE TABLE IF NOT EXISTS plantillas_email (
             id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, categoria TEXT DEFAULT '',
             asunto TEXT NOT NULL, cuerpo TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS oportunidades (
+            id SERIAL PRIMARY KEY, fuente TEXT NOT NULL, query TEXT DEFAULT '', nombre TEXT DEFAULT '',
+            organismo TEXT DEFAULT '', region TEXT DEFAULT '', monto TEXT DEFAULT '', estado TEXT DEFAULT '',
+            fecha TEXT DEFAULT '', url_ficha TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
     """
 
 
@@ -206,6 +210,10 @@ def _schema_sqlite():
         CREATE TABLE IF NOT EXISTS plantillas_email (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, categoria TEXT DEFAULT '',
             asunto TEXT NOT NULL, cuerpo TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));
+        CREATE TABLE IF NOT EXISTS oportunidades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, fuente TEXT NOT NULL, query TEXT DEFAULT '', nombre TEXT DEFAULT '',
+            organismo TEXT DEFAULT '', region TEXT DEFAULT '', monto TEXT DEFAULT '', estado TEXT DEFAULT '',
+            fecha TEXT DEFAULT '', url_ficha TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')));
     """
 
 
@@ -615,6 +623,28 @@ def listar_evaluaciones_ia(limit: int = 100000):
     ph = "%s" if USE_PG else "?"
     with get_db() as conn:
         return _fetchall(conn, f"SELECT * FROM evaluaciones_ia ORDER BY id DESC LIMIT {ph}", (limit,))
+
+
+# --- OPORTUNIDADES (log de cada busqueda de licitaciones/SEIA, sin filtrar) ---
+
+def guardar_oportunidades(fuente: str, query: str, items: list[dict]):
+    """Registra cada resultado de una busqueda de Mercado Publico o SEIA, tal cual
+    aparecio, para que quede historial exportable a Sheets aunque no se importe al CRM."""
+    if not items:
+        return
+    ph = "%s" if USE_PG else "?"
+    cols = "fuente, query, nombre, organismo, region, monto, estado, fecha, url_ficha"
+    with get_db() as conn:
+        for it in items:
+            vals = (fuente, query, it.get("nombre", ""), it.get("organismo", ""), it.get("region", ""),
+                    str(it.get("monto", "")), it.get("estado", ""), it.get("fecha", ""), it.get("url_ficha", ""))
+            _exec(conn, f"INSERT INTO oportunidades ({cols}) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})", vals)
+
+
+def listar_oportunidades(limit: int = 100000):
+    ph = "%s" if USE_PG else "?"
+    with get_db() as conn:
+        return _fetchall(conn, f"SELECT * FROM oportunidades ORDER BY id DESC LIMIT {ph}", (limit,))
 
 
 # --- CONFIG PROSPECCION ---

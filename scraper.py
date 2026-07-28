@@ -8,6 +8,16 @@ import re
 import database as db
 
 
+def _sync_sheets_silencioso():
+    """ponytail: empuja el estado actual a Google Sheets tras cada busqueda/importacion
+    que cambia datos. Si Sheets no esta configurado o falla, no debe romper el flujo."""
+    try:
+        import sheets_sync
+        sheets_sync.sincronizar()
+    except Exception:
+        pass
+
+
 # --- APOLLO.IO ---
 
 async def buscar_apollo(
@@ -127,6 +137,7 @@ async def importar_apollo_al_crm(contactos: list[dict]) -> dict:
             })
             contactos_creados += 1
 
+    _sync_sheets_silencioso()
     return {"empresas_creadas": empresas_creadas, "contactos_creados": contactos_creados}
 
 
@@ -224,6 +235,7 @@ async def importar_hunter_al_crm(contactos: list[dict], empresa_nombre: str, dom
             })
             contactos_creados += 1
 
+    _sync_sheets_silencioso()
     return {"empresas_creadas": 1, "contactos_creados": contactos_creados}
 
 
@@ -267,6 +279,11 @@ async def buscar_mercadopublico(keyword: str) -> dict:
         })
 
     db.log_scraping("mercadopublico_api", keyword, len(resultados))
+    db.guardar_oportunidades("mercadopublico", keyword, [
+        {"nombre": r["nombre"], "organismo": r["organismo"], "estado": r["estado"],
+         "fecha": r["fecha_cierre"], "monto": r["monto"]} for r in resultados
+    ])
+    _sync_sheets_silencioso()
     return {"resultados": resultados}
 
 
@@ -369,6 +386,11 @@ async def buscar_seia(rubro: str, limit: int = 20) -> dict:
     } for p in data.get("data", [])]
 
     db.log_scraping("seia", rubro, len(proyectos))
+    db.guardar_oportunidades("seia", rubro, [
+        {"nombre": p["proyecto"], "organismo": p["titular"], "region": p["region"], "estado": p["estado"],
+         "fecha": p["fecha"], "monto": p["inversion_mm"], "url_ficha": p["url_ficha"]} for p in proyectos
+    ])
+    _sync_sheets_silencioso()
     return {"proyectos": proyectos}
 
 
@@ -477,6 +499,7 @@ def importar_csv(contenido: bytes, fuente: str = "csv") -> dict:
             contactos_creados += 1
 
     db.log_scraping(fuente, "importacion_csv", empresas_creadas + contactos_creados)
+    _sync_sheets_silencioso()
     return {"empresas_creadas": empresas_creadas, "contactos_creados": contactos_creados, "columnas_detectadas": field_map}
 
 
