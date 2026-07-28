@@ -141,13 +141,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
           <div class="mt-4">
             <label class="block text-sm font-medium mb-1">Intervalo (horas)</label>
             <select id="prospeccion-intervalo" class="w-full">
-              <option value="2">Cada 2 horas</option>
+              <option value="0">Manual (solo "Ejecutar Ahora")</option>
+              <option value="1">Cada 1 hora</option>
+              <option value="3">Cada 3 horas</option>
               <option value="6" selected>Cada 6 horas</option>
               <option value="12">Cada 12 horas</option>
-              <option value="24">Una vez al dia</option>
+              <option value="24">Cada 24 horas</option>
             </select>
           </div>
           <button onclick="guardarConfigProspeccion()" class="btn btn-success mt-4 w-full">Guardar Configuracion</button>
+          <p id="prospeccion-ultima-ejecucion" class="text-gray-400 text-xs mt-2"></p>
         </div>
       </div>
 
@@ -493,7 +496,11 @@ async function loadConfigProspeccion() {
   const empresasText = (config.empresas_target || []).map(e => e.rubro ? `${e.nombre} | ${e.dominio} | ${e.rubro}` : `${e.nombre} | ${e.dominio}`).join('\n');
   document.getElementById('prospeccion-empresas').value = empresasText;
   document.getElementById('prospeccion-keywords').value = (config.keywords || []).join('\n');
-  document.getElementById('prospeccion-intervalo').value = config.intervalo_horas || 6;
+  document.getElementById('prospeccion-intervalo').value = config.activo ? (config.intervalo_horas || 6) : 0;
+  const ult = document.getElementById('prospeccion-ultima-ejecucion');
+  ult.textContent = config.activo
+    ? (config.ultima_ejecucion ? `Ultima ejecucion automatica: ${new Date(config.ultima_ejecucion + 'Z').toLocaleString('es-CL')}` : 'Automatico activado, aun no corre la primera vez')
+    : 'Modo manual: solo corre cuando aprietas "Ejecutar Ahora"';
   loadRubros();
   loadProspectos();
 }
@@ -524,9 +531,11 @@ async function guardarConfigProspeccion() {
     return { nombre: parts[0] || '', dominio: parts[1] || '', rubro: parts[2] || '' };
   });
   const keywords = document.getElementById('prospeccion-keywords').value.trim().split('\n').filter(Boolean);
-  const intervalo_horas = parseInt(document.getElementById('prospeccion-intervalo').value) || 6;
-  await api('/api/prospeccion/config', { method: 'POST', body: { empresas_target, keywords, intervalo_horas, activo: true } });
+  const valor = parseInt(document.getElementById('prospeccion-intervalo').value) || 0;
+  const activo = valor > 0;
+  await api('/api/prospeccion/config', { method: 'POST', body: { empresas_target, keywords, intervalo_horas: activo ? valor : 6, activo } });
   toast('Configuracion guardada');
+  loadConfigProspeccion();
 }
 
 async function ejecutarProspeccion() {

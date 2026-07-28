@@ -1,0 +1,15 @@
+name: Prospeccion automatica
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ejecutar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de cron del CRM
+        run: |
+          curl -sf -X GET "https://proyecto-diego-ecru.vercel.app/api/prospeccion/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

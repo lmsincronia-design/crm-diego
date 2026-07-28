@@ -261,6 +261,30 @@ def update_prospecto(id: int, data: dict):
     return {"ok": True}
 
 
+@app.get("/api/prospeccion/cron")
+async def cron_prospeccion():
+    """Disparado por un GitHub Action cada hora (ver .github/workflows/prospeccion-cron.yml).
+    Solo ejecuta prospeccion real si esta activa y ya paso el intervalo configurado -- asi
+    un solo cron horario sirve para las opciones de 1/3/6/12/24 horas."""
+    config = db.obtener_config_prospeccion()
+    if not config.get("activo"):
+        return {"ejecutado": False, "razon": "prospeccion en modo manual"}
+
+    ultima = config.get("ultima_ejecucion")
+    if ultima:
+        from datetime import datetime, timedelta
+        try:
+            desde = datetime.fromisoformat(str(ultima).split(".")[0].replace("Z", ""))
+            if datetime.utcnow() - desde < timedelta(hours=config.get("intervalo_horas", 6)):
+                return {"ejecutado": False, "razon": "aun no toca segun el intervalo configurado"}
+        except ValueError:
+            pass
+
+    resultado = await prospector.ejecutar_prospeccion()
+    db.marcar_ejecucion_prospeccion()
+    return {"ejecutado": True, **resultado}
+
+
 # --- SCRAPING ---
 
 @app.post("/api/scraping/mercadopublico")

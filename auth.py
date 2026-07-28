@@ -16,10 +16,19 @@ from starlette.responses import JSONResponse
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        if request.url.path == "/api/prospeccion/cron":
+            # ponytail: este endpoint lo llama GitHub Actions, no un usuario logeado -->
+            # secreto compartido propio en vez de exigir sesion de Supabase.
+            authorization = request.headers.get("authorization", "")
+            if not CRON_SECRET or authorization != f"Bearer {CRON_SECRET}":
+                return JSONResponse({"error": "No autorizado"}, status_code=401)
+            return await call_next(request)
+
         if request.url.path.startswith("/api/"):
             authorization = request.headers.get("authorization", "")
             if not authorization.startswith("Bearer "):

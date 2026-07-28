@@ -115,6 +115,11 @@ def _migrar_columnas_nuevas():
                 _exec(conn, f"ALTER TABLE prospectos ADD COLUMN {col} {coltype}")
         except Exception:
             pass
+    try:
+        with get_db() as conn:
+            _exec(conn, "ALTER TABLE config_prospeccion ADD COLUMN ultima_ejecucion TEXT")
+    except Exception:
+        pass
 
 
 def _schema_pg():
@@ -672,13 +677,20 @@ def obtener_config_prospeccion() -> dict:
     with get_db() as conn:
         row = _fetchone(conn, "SELECT * FROM config_prospeccion LIMIT 1")
         if not row:
-            return {"empresas_target": [], "keywords": [], "intervalo_horas": 6, "activo": False}
+            return {"empresas_target": [], "keywords": [], "intervalo_horas": 6, "activo": False, "ultima_ejecucion": None}
         return {
             "empresas_target": json.loads(row.get("empresas_target", "[]")),
             "keywords": json.loads(row.get("keywords", "[]")),
             "intervalo_horas": row.get("intervalo_horas", 6),
             "activo": bool(row.get("activo", False)),
+            "ultima_ejecucion": row.get("ultima_ejecucion"),
         }
+
+
+def marcar_ejecucion_prospeccion():
+    now = "CURRENT_TIMESTAMP" if USE_PG else "datetime('now')"
+    with get_db() as conn:
+        _exec(conn, f"UPDATE config_prospeccion SET ultima_ejecucion = {now}")
 
 
 # --- DASHBOARD ---
