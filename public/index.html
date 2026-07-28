@@ -5,56 +5,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRM Diego - Repuestos Industriales</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
+:root {
+  --accent: #4f46e5; --accent-dark: #4338ca; --accent-light: #eef2ff;
+  --ink: #0f172a; --ink-soft: #64748b; --line: #e5e7eb;
+}
+* { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+body { background: #f4f5f9; color: var(--ink); }
+#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 20% 20%, #eef2ff 0%, #f4f5f9 45%, #f4f5f9 100%); }
 #login-screen.hidden { display: none; }
-#login-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 2.5rem; width: 100%; max-width: 380px; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; }
-.tab-active { background: #1e40af; color: white; }
-.tab-btn { transition: all 0.2s; }
-.tab-btn:hover { background: rgba(255,255,255,0.1); }
-.tab-active:hover { background: #1e3a8a; }
-.card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.stat-card { color: white; border-radius: 12px; padding: 1.5rem; }
-.sc-purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.sc-green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-.sc-orange { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.sc-blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.pipeline-col { min-height: 200px; background: #f8fafc; border-radius: 8px; }
-.deal-card { background: white; border-left: 4px solid #667eea; border-radius: 8px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }
-.deal-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal { background: white; border-radius: 12px; padding: 2rem; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; }
-.badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+#login-card { background: white; border-radius: 18px; box-shadow: 0 20px 45px -15px rgba(15,23,42,0.18); padding: 2.75rem; width: 100%; max-width: 400px; border: 1px solid var(--line); }
+#login-card h1 { background: linear-gradient(135deg, var(--accent), #7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tab-active { background: var(--accent); color: white; box-shadow: 0 6px 16px -6px rgba(79,70,229,0.55); }
+.tab-btn { transition: background .15s ease, transform .1s ease; font-weight: 500; font-size: 0.925rem; }
+.tab-btn:hover { background: rgba(255,255,255,0.08); }
+.tab-active:hover { background: var(--accent-dark); }
+.card { background: white; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+.stat-card { color: white; border-radius: 14px; padding: 1.5rem; box-shadow: 0 10px 25px -10px rgba(15,23,42,0.35); }
+.sc-purple { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
+.sc-green { background: linear-gradient(135deg, #059669 0%, #34d399 100%); }
+.sc-orange { background: linear-gradient(135deg, #ea580c 0%, #fb923c 100%); }
+.sc-blue { background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); }
+.pipeline-col { min-height: 200px; background: #f8fafc; border-radius: 10px; border: 1px solid var(--line); }
+.deal-card { background: white; border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; transition: box-shadow .15s ease, transform .1s ease; }
+.deal-card:hover { box-shadow: 0 8px 20px -8px rgba(15,23,42,0.2); transform: translateY(-1px); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.55); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal { background: white; border-radius: 16px; padding: 2rem; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px -15px rgba(15,23,42,0.4); }
+.badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: .01em; }
 .badge-green { background: #d1fae5; color: #065f46; }
 .badge-yellow { background: #fef3c7; color: #92400e; }
-.badge-blue { background: #dbeafe; color: #1e40af; }
+.badge-blue { background: #e0e7ff; color: #3730a3; }
 .badge-red { background: #fee2e2; color: #991b1b; }
-.badge-purple { background: #ede9fe; color: #5b21b6; }
-.toast { position: fixed; bottom: 20px; right: 20px; background: #1e40af; color: white; padding: 12px 24px; border-radius: 8px; z-index: 100; animation: slideIn 0.3s; }
+.badge-purple { background: #f3e8ff; color: #6b21a8; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--ink); color: white; padding: 12px 22px; border-radius: 10px; z-index: 100; box-shadow: 0 15px 35px -10px rgba(15,23,42,0.5); animation: slideIn 0.25s ease-out; }
 @keyframes slideIn { from { transform: translateY(100px); opacity: 0; } }
-table { width: 100%; }
-th { text-align: left; padding: 12px; font-weight: 600; color: #64748b; border-bottom: 2px solid #e2e8f0; font-size: 0.85rem; text-transform: uppercase; }
-td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px; font-weight: 600; color: var(--ink-soft); border-bottom: 1px solid var(--line); font-size: 0.72rem; letter-spacing: .04em; text-transform: uppercase; }
+td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
 tr:hover td { background: #f8fafc; }
-input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; width: 100%; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 3px rgba(30,64,175,0.1); }
-.btn { padding: 8px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
-.btn-primary { background: #1e40af; color: white; }
-.btn-primary:hover { background: #1e3a8a; }
-.btn-secondary { background: #e2e8f0; color: #475569; }
-.btn-secondary:hover { background: #cbd5e1; }
-.btn-danger { background: #ef4444; color: white; }
-.btn-danger:hover { background: #dc2626; }
-.btn-success { background: #10b981; color: white; }
-.btn-success:hover { background: #059669; }
-.btn-apollo { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-.btn-apollo:hover { background: linear-gradient(135deg, #5a67d8, #6b46c1); }
-.btn-sm { padding: 4px 12px; font-size: 0.85rem; }
-.apollo-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; transition: all 0.2s; }
-.apollo-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
-.apollo-card.selected { border-color: #667eea; background: #f5f3ff; }
+input, select, textarea { border: 1px solid #d8dce3; border-radius: 9px; padding: 9px 12px; width: 100%; font-size: 0.9rem; transition: border-color .15s ease, box-shadow .15s ease; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+.btn { padding: 8px 18px; border-radius: 9px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background .15s ease, transform .1s ease, box-shadow .15s ease; border: none; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); color: white; box-shadow: 0 4px 12px -4px rgba(79,70,229,0.5); }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { background: #eef0f4; color: #475569; }
+.btn-secondary:hover { background: #e2e5ec; }
+.btn-danger { background: #fee2e2; color: #b91c1c; }
+.btn-danger:hover { background: #fecaca; }
+.btn-success { background: #059669; color: white; box-shadow: 0 4px 12px -4px rgba(5,150,105,0.5); }
+.btn-success:hover { background: #047857; }
+.btn-apollo { background: linear-gradient(135deg, #6366f1, #a855f7); color: white; box-shadow: 0 4px 12px -4px rgba(147,51,234,0.5); }
+.btn-apollo:hover { background: linear-gradient(135deg, #4f46e5, #9333ea); }
+.btn-sm { padding: 4px 12px; font-size: 0.8rem; }
+.apollo-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; transition: all 0.15s ease; }
+.apollo-card:hover { border-color: var(--accent); box-shadow: 0 8px 20px -10px rgba(79,70,229,0.3); }
+.apollo-card.selected { border-color: var(--accent); background: var(--accent-light); }
 </style>
 </head>
 <body>
@@ -80,10 +89,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
 <div id="app-container" class="hidden">
 <div class="flex h-screen">
   <!-- Sidebar -->
-  <aside class="w-64 bg-gray-900 text-white flex flex-col" style="min-width:220px">
-    <div class="p-6 border-b border-gray-700">
-      <h1 class="text-xl font-bold">CRM Diego</h1>
-      <p class="text-gray-400 text-sm mt-1">Repuestos Industriales</p>
+  <aside class="w-64 text-white flex flex-col" style="min-width:220px; background:#0b0f19">
+    <div class="p-6 border-b border-gray-800">
+      <h1 class="text-xl font-extrabold tracking-tight">CRM <span style="color:#818cf8">Diego</span></h1>
+      <p class="text-gray-500 text-xs mt-1 uppercase tracking-wide">Repuestos Industriales</p>
     </div>
     <nav class="flex-1 p-4 space-y-1" id="nav">
       <button onclick="showTab('dashboard')" class="tab-btn w-full text-left px-4 py-3 rounded-lg tab-active" data-tab="dashboard">&#128202; Dashboard</button>
