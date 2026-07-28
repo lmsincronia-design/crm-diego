@@ -79,12 +79,12 @@ async def buscar_apollo(
     for p in data.get("people", []):
         org = p.get("organization", {}) or {}
         people.append({
-            "nombre": p.get("first_name", ""),
-            "apellido": p.get("last_name", ""),
-            "cargo": p.get("title", ""),
-            "email": p.get("email", ""),
+            "nombre": p.get("first_name") or "",
+            "apellido": p.get("last_name") or "",
+            "cargo": p.get("title") or "",
+            "email": p.get("email") or "",
             "telefono": (p.get("phone_numbers") or [{}])[0].get("sanitized_number", "") if p.get("phone_numbers") else "",
-            "linkedin_url": p.get("linkedin_url", ""),
+            "linkedin_url": p.get("linkedin_url") or "",
             "empresa": org.get("name", ""),
             "empresa_web": org.get("website_url", ""),
             "empresa_industria": org.get("industry", ""),
@@ -172,14 +172,14 @@ async def buscar_hunter(dominio: str) -> dict:
     contacts = []
     for e in data.get("emails", []):
         contacts.append({
-            "nombre": e.get("first_name", ""),
-            "apellido": e.get("last_name", ""),
-            "cargo": e.get("position", ""),
-            "email": e.get("value", ""),
+            "nombre": e.get("first_name") or "",
+            "apellido": e.get("last_name") or "",
+            "cargo": e.get("position") or "",
+            "email": e.get("value") or "",
             "telefono": e.get("phone_number") or "",
-            "linkedin_url": e.get("linkedin", "") or "",
+            "linkedin_url": e.get("linkedin") or "",
             "confianza": e.get("confidence", 0),
-            "departamento": e.get("department", ""),
+            "departamento": e.get("department") or "",
         })
 
     empresa = data.get("organization", dominio)
