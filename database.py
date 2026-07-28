@@ -120,6 +120,12 @@ def _migrar_columnas_nuevas():
             _exec(conn, "ALTER TABLE config_prospeccion ADD COLUMN ultima_ejecucion TEXT")
     except Exception:
         pass
+    for col in ("asunto", "cuerpo"):
+        try:
+            with get_db() as conn:
+                _exec(conn, f"ALTER TABLE emails_enviados ADD COLUMN {col} TEXT DEFAULT ''")
+        except Exception:
+            pass
 
 
 def _schema_pg():
@@ -144,7 +150,8 @@ def _schema_pg():
         CREATE TABLE IF NOT EXISTS emails_enviados (
             id SERIAL PRIMARY KEY, campana_id INTEGER REFERENCES campanas(id) ON DELETE CASCADE,
             contacto_id INTEGER REFERENCES contactos(id) ON DELETE CASCADE, email_destino TEXT DEFAULT '',
-            estado TEXT DEFAULT 'pendiente', fecha_envio TIMESTAMP, error TEXT);
+            estado TEXT DEFAULT 'pendiente', fecha_envio TIMESTAMP, error TEXT,
+            asunto TEXT DEFAULT '', cuerpo TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS scraping_log (
             id SERIAL PRIMARY KEY, fuente TEXT NOT NULL, query TEXT DEFAULT '', resultados INTEGER DEFAULT 0,
             estado TEXT DEFAULT 'completado', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
@@ -194,7 +201,8 @@ def _schema_sqlite():
         CREATE TABLE IF NOT EXISTS emails_enviados (
             id INTEGER PRIMARY KEY AUTOINCREMENT, campana_id INTEGER REFERENCES campanas(id) ON DELETE CASCADE,
             contacto_id INTEGER REFERENCES contactos(id) ON DELETE CASCADE, email_destino TEXT DEFAULT '',
-            estado TEXT DEFAULT 'pendiente', fecha_envio TEXT, error TEXT);
+            estado TEXT DEFAULT 'pendiente', fecha_envio TEXT, error TEXT,
+            asunto TEXT DEFAULT '', cuerpo TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS scraping_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT, fuente TEXT NOT NULL, query TEXT DEFAULT '', resultados INTEGER DEFAULT 0,
             estado TEXT DEFAULT 'completado', created_at TEXT DEFAULT (datetime('now')));
@@ -475,12 +483,39 @@ def listar_destinatarios(campana_id: int):
             f"JOIN contactos c ON ee.contacto_id = c.id WHERE ee.campana_id = {ph} ORDER BY ee.id", (campana_id,))
 
 
-def marcar_email_enviado(id: int, estado: str, error: str = None):
+def marcar_email_enviado(id: int, estado: str, error: str = None, asunto: str = "", cuerpo: str = ""):
     now = "CURRENT_TIMESTAMP" if USE_PG else "datetime('now')"
     ph = "%s" if USE_PG else "?"
     with get_db() as conn:
-        _exec(conn, f"UPDATE emails_enviados SET estado = {ph}, fecha_envio = {now}, error = {ph} WHERE id = {ph}",
-              (estado, error, id))
+        _exec(conn, f"UPDATE emails_enviados SET estado = {ph}, fecha_envio = {now}, error = {ph}, "
+                    f"asunto = {ph}, cuerpo = {ph} WHERE id = {ph}",
+              (estado, error, asunto, cuerpo, id))
+
+
+def listar_emails_por_contacto(contacto_id: int):
+    ph = "%s" if USE_PG else "?"
+    with get_db() as conn:
+        return _fetchall(conn,
+            f"SELECT ee.*, c.nombre as campana_nombre FROM emails_enviados ee "
+            f"LEFT JOIN campanas c ON ee.campana_id = c.id "
+            f"WHERE ee.contacto_id = {ph} ORDER BY ee.id DESC", (contacto_id,))
+
+
+def obtener_deal_por_contacto(contacto_id: int):
+    ph = "%s" if USE_PG else "?"
+    with get_db() as conn:
+        return _fetchone(conn, f"SELECT * FROM pipeline WHERE contacto_id = {ph} ORDER BY id LIMIT 1", (contacto_id,))
+
+
+def marcar_contacto_contactado(contacto_id: int, empresa_id: int = None):
+    """Al enviar un correo exitosamente, refleja el avance en Pipeline: crea el deal
+    si no existe, o lo sube de 'prospecto' a 'contactado'. No baja un deal que ya
+    esta mas avanzado (propuesta/negociacion/cerrado)."""
+    deal = obtener_deal_por_contacto(contacto_id)
+    if not deal:
+        crear_deal({"contacto_id": contacto_id, "empresa_id": empresa_id, "etapa": "contactado"})
+    elif deal["etapa"] == "prospecto":
+        actualizar_deal(deal["id"], {"etapa": "contactado"})
 
 
 # --- SCRAPING LOG ---

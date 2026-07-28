@@ -91,6 +91,10 @@ def update_contacto(id: int, data: dict):
     db.actualizar_contacto(id, data)
     return {"ok": True}
 
+@app.get("/api/contactos/{id}/emails")
+def get_emails_contacto(id: int):
+    return db.listar_emails_por_contacto(id)
+
 @app.delete("/api/contactos/{id}")
 def delete_contacto(id: int):
     db.eliminar_contacto(id)

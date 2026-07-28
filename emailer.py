@@ -73,10 +73,11 @@ def enviar_campana(campana_id: int) -> dict:
 
         ok, error = enviar_email(contacto["email"], asunto, cuerpo)
         if ok:
-            db.marcar_email_enviado(dest["id"], "enviado")
+            db.marcar_email_enviado(dest["id"], "enviado", asunto=asunto, cuerpo=cuerpo)
+            db.marcar_contacto_contactado(contacto["id"], contacto.get("empresa_id"))
             enviados += 1
         else:
-            db.marcar_email_enviado(dest["id"], "error", error)
+            db.marcar_email_enviado(dest["id"], "error", error, asunto=asunto, cuerpo=cuerpo)
             errores += 1
 
     return {"enviados": enviados, "errores": errores, "total": len(pendientes)}

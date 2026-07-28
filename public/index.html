@@ -860,10 +860,13 @@ async function loadPipeline() {
         <div class="text-xs text-gray-400 mt-1">${d.producto||''}</div><div class="font-bold text-sm mt-1">$${(d.valor_estimado||0).toLocaleString()}</div></div>`).join('')}</div>`;
   }).join('');
 }
+function _escHtml(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+
 async function modalDeal(id) {
   let d = {contacto_id:'',empresa_id:'',etapa:'prospecto',valor_estimado:'',producto:'',notas:''};
   if (id) { const deals = await api('/api/pipeline'); d = deals.find(x=>x.id===id)||d; }
   const empresas = await api('/api/empresas'); const contactos = await api('/api/contactos');
+  const emails = d.contacto_id ? await api(`/api/contactos/${d.contacto_id}/emails`) : [];
   showModal(`<h3 class="text-xl font-bold mb-4">${id?'Editar':'Nuevo'} Deal</h3>
     <div class="grid grid-cols-2 gap-4">
       <div><label class="block text-sm font-medium mb-1">Empresa</label><select id="deal-empresa"><option value="">-</option>${empresas.map(e=>`<option value="${e.id}" ${e.id==d.empresa_id?'selected':''}>${e.nombre}</option>`).join('')}</select></div>
@@ -873,6 +876,22 @@ async function modalDeal(id) {
       <div class="col-span-2"><label class="block text-sm font-medium mb-1">Producto</label><input id="deal-producto" value="${d.producto||''}" placeholder="Rodamientos SKF, Filtros Donaldson..."></div>
       <div class="col-span-2"><label class="block text-sm font-medium mb-1">Notas</label><textarea id="deal-notas" rows="2">${d.notas||''}</textarea></div>
     </div>
+    ${emails.length ? `<div class="mt-5 pt-4" style="border-top:1px solid #e5e7eb">
+      <h4 class="font-semibold text-sm mb-2">Correos enviados a este contacto (${emails.length})</h4>
+      <div class="space-y-2">
+        ${emails.map((e,i) => `
+          <div class="card p-3">
+            <div class="flex justify-between items-center cursor-pointer" onclick="const b=document.getElementById('email-body-${i}'); b.classList.toggle('hidden')">
+              <div>
+                <span class="badge ${e.estado==='enviado'?'badge-green':'badge-red'}">${e.estado}</span>
+                <span class="text-sm font-medium ml-2">${_escHtml(e.asunto||'(sin asunto)')}</span>
+              </div>
+              <span class="text-xs text-gray-400">${e.fecha_envio||''}</span>
+            </div>
+            <div id="email-body-${i}" class="hidden mt-2 text-sm text-gray-600" style="white-space:pre-wrap">${_escHtml(e.cuerpo||e.error||'(sin contenido guardado)')}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
     <div class="flex justify-between mt-6">
       <div>${id?`<button onclick="eliminarDeal(${id})" class="btn btn-danger">Eliminar</button>`:''}</div>
       <div class="flex gap-3"><button onclick="closeModal()" class="btn btn-secondary">Cancelar</button><button onclick="guardarDeal(${id||'null'})" class="btn btn-primary">Guardar</button></div></div>`);
