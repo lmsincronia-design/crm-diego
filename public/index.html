@@ -248,7 +248,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af
           <select id="oportunidad-rubro" class="flex-1" style="min-width:180px"></select>
           <input type="text" id="oportunidad-keyword" placeholder="Palabra clave para licitaciones (opcional)" class="flex-1" style="min-width:220px">
           <button onclick="buscarOportunidades()" class="btn btn-primary">Buscar Oportunidades</button>
+          <button onclick="buscarOportunidadesProfundo()" class="btn btn-secondary">🔬 Busqueda profunda (contactos reales)</button>
         </div>
+        <div id="oportunidades-profundo-results" class="mb-4"></div>
         <div id="oportunidades-results"></div>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -943,6 +945,28 @@ async function buscarOportunidades() {
       </tbody></table>`;
   }
   document.getElementById('oportunidades-results').innerHTML = html;
+  loadScrapingLog();
+}
+
+async function buscarOportunidadesProfundo() {
+  const rubro = document.getElementById('oportunidad-rubro').value;
+  const maxStr = prompt('¿Cuantos proyectos revisar a fondo? (1 busqueda de Hunter.io por proyecto)', '5');
+  if (!maxStr) return;
+  const max_proyectos = parseInt(maxStr) || 5;
+  const box = document.getElementById('oportunidades-profundo-results');
+  box.innerHTML = `<p class="text-blue-600">Revisando ${max_proyectos} proyectos a fondo (esto tarda mas, un momento)...</p>`;
+
+  const r = await api('/api/scraping/oportunidades-profundo', {method:'POST', body:{rubro, max_proyectos}});
+  if (r.error) { box.innerHTML = `<p class="text-orange-500 text-sm">${r.error}</p>`; return; }
+
+  const calificados = (r.evaluados||[]).filter(e => e.calificado);
+  box.innerHTML = `
+    <div class="card p-4 bg-gray-50">
+      <p class="font-semibold">${r.proyectos_revisados} proyectos revisados &middot; ${r.dominios_consultados.length} empresas consultadas en Hunter &middot; ${r.nuevos} contactos nuevos &middot; <span class="text-green-600">${r.calificados} calificados</span></p>
+      ${calificados.length ? `<table class="mt-3"><thead><tr><th>Nombre</th><th>Cargo</th><th>Email</th><th>Empresa</th><th>Puntaje</th></tr></thead><tbody>
+        ${calificados.map(c => `<tr><td>${c.nombre} ${c.apellido}</td><td class="text-xs">${c.cargo}</td><td class="text-xs">${c.email}</td><td>${c.empresa}</td><td>${c.puntaje_ia}</td></tr>`).join('')}
+      </tbody></table><p class="text-xs text-gray-400 mt-2">Ya quedaron guardados como Prospectos Calificados y sincronizados al Sheets.</p>` : '<p class="text-gray-400 mt-2">Ninguno califico esta vez.</p>'}
+    </div>`;
   loadScrapingLog();
 }
 

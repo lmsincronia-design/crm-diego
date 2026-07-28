@@ -332,6 +332,14 @@ async def scrape_seia(data: dict):
         return {"error": "Falta rubro"}
     return await scraper.buscar_seia(rubro)
 
+@app.post("/api/scraping/oportunidades-profundo")
+async def scrape_oportunidades_profundo(data: dict):
+    rubro = data.get("rubro", "")
+    max_proyectos = min(int(data.get("max_proyectos", 5)), 15)
+    if not rubro:
+        return {"error": "Falta rubro"}
+    return await prospector.buscar_oportunidades_profundo(rubro, max_proyectos)
+
 @app.post("/api/scraping/seia/contacto")
 async def scrape_seia_contacto(data: dict):
     url_ficha = data.get("url_ficha", "")

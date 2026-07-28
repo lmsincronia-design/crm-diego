@@ -334,17 +334,24 @@ async def ejecutar_prospeccion() -> dict:
     # de que el resto de la funcion decida que hacer con los calificados. Asi si
     # falla algo despues, igual queda registro de lo que la IA vio y decidio.
     db.guardar_evaluaciones_ia(resumen["evaluados"])
+    _guardar_calificados(calificados)
 
-    # 6. Guardar en DB
+    db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", resumen["calificados"])
+    scraper._sync_sheets_silencioso()
+
+    return resumen
+
+
+def _guardar_calificados(calificados: list[dict]):
+    """Crea empresa/contacto/prospecto (con email sugerido) para cada contacto ya
+    calificado por la IA. Compartido entre ejecutar_prospeccion y la busqueda profunda
+    de oportunidades para no duplicar el guardado."""
     for c in calificados:
         dominio = c.get("dominio", "")
-        empresa_id = None
         empresa_nombre = c.get("empresa", "")
-
         rubro = c.get("rubro", "")
 
-        if dominio:
-            empresa_id = db.empresa_existe_por_dominio(dominio)
+        empresa_id = db.empresa_existe_por_dominio(dominio) if dominio else None
         if not empresa_id and empresa_nombre:
             empresa_id = db.crear_empresa({
                 "nombre": empresa_nombre,
@@ -375,7 +382,71 @@ async def ejecutar_prospeccion() -> dict:
             email_cuerpo=email_draft["cuerpo"],
         )
 
-    db.log_scraping("prospeccion_auto", f"empresas:{len(empresas_target)} keywords:{len(keywords)}", resumen["calificados"])
-    scraper._sync_sheets_silencioso()
 
+# ponytail: dominios de consultoras ambientales que aparecen seguido como "contacto"
+# en fichas SEIA pero no son la empresa titular -- si se usan como dominio de busqueda
+# en Hunter, se ensucia todo con gente de la consultora en vez de la minera/forestal real.
+_DOMINIOS_CONSULTORAS = {"slrconsulting.com", "arcadis.com", "geoaire.cl", "gac.cl", "senes.cl"}
+
+
+async def buscar_oportunidades_profundo(rubro: str, max_proyectos: int = 5) -> dict:
+    """Version lenta y a fondo de Oportunidades: por cada proyecto SEIA reciente,
+    saca el dominio real de la empresa desde el contacto de la ficha (evitando el de
+    la consultora ambiental) y busca en Hunter.io a la gente real de esa empresa,
+    despues filtra todo con IA. Gasta 1 busqueda de Hunter por proyecto -- por eso
+    max_proyectos limita el gasto."""
+    resultado_seia = await scraper.buscar_seia(rubro, limit=max_proyectos)
+    proyectos = resultado_seia.get("proyectos", [])
+    if not proyectos:
+        return {"error": resultado_seia.get("error", "Sin proyectos para este rubro"), "evaluados": []}
+
+    contactos_raw = []
+    dominios_consultados = []
+    for p in proyectos:
+        if not p.get("url_ficha"):
+            continue
+        ficha = await scraper.obtener_contacto_seia(p["url_ficha"])
+        dominio = None
+        for seccion in ficha.get("contacto", {}).values():
+            email_raw = seccion.get("E-mail") or seccion.get("Email") or ""
+            for email in email_raw.split(","):
+                d = email.strip().split("@")[-1].lower() if "@" in email else ""
+                if d and d not in _DOMINIOS_CONSULTORAS:
+                    dominio = d
+                    break
+            if dominio:
+                break
+        if not dominio or dominio in dominios_consultados:
+            continue
+        dominios_consultados.append(dominio)
+
+        data = await scraper.buscar_hunter(dominio)
+        for c in data.get("contacts", []):
+            c["empresa"] = data.get("empresa", p.get("titular", ""))
+            c["dominio"] = dominio
+            c["rubro"] = rubro
+            c["fuente_prospeccion"] = "seia_profundo"
+            contactos_raw.append(c)
+
+    nuevos = [c for c in contactos_raw if c.get("email") and not db.contacto_existe(email=c["email"])]
+    resumen = {"proyectos_revisados": len(proyectos), "dominios_consultados": dominios_consultados,
+               "total_raw": len(contactos_raw), "nuevos": len(nuevos), "calificados": 0, "evaluados": []}
+    if not nuevos:
+        return resumen
+
+    evaluados = await filtrar_con_ia(nuevos)
+    calificados = [c for c in evaluados if c.get("puntaje_ia", 0) >= 50]
+    resumen["calificados"] = len(calificados)
+    resumen["evaluados"] = [
+        {"nombre": c.get("nombre", ""), "apellido": c.get("apellido", ""), "cargo": c.get("cargo", ""),
+         "email": c.get("email", ""), "empresa": c.get("empresa", ""), "rubro": c.get("rubro", ""),
+         "puntaje_ia": c.get("puntaje_ia", 0), "razon_ia": c.get("razon_ia", ""),
+         "calificado": c.get("puntaje_ia", 0) >= 50}
+        for c in evaluados
+    ]
+    db.guardar_evaluaciones_ia(resumen["evaluados"])
+    _guardar_calificados(calificados)
+
+    db.log_scraping("seia_profundo", rubro, resumen["calificados"])
+    scraper._sync_sheets_silencioso()
     return resumen
