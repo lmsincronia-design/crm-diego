@@ -212,8 +212,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
       </div>
       <div class="card p-4 mb-4 flex flex-col md:flex-row gap-3">
         <input type="text" id="buscar-empresa" placeholder="Buscar por nombre, RUT o industria..." onkeyup="debounce(loadEmpresas, 300)()" class="flex-1">
-        <select id="filtro-empresa-rubro" onchange="loadEmpresas()"><option value="">Todos los rubros</option></select>
-        <select id="filtro-empresa-fuente" onchange="loadEmpresas()"><option value="">Todas las fuentes</option></select>
+        <select id="filtro-empresa-rubro" onchange="loadEmpresas()" style="flex:0 0 180px; width:180px"><option value="">Todos los rubros</option></select>
+        <select id="filtro-empresa-fuente" onchange="loadEmpresas()" style="flex:0 0 180px; width:180px"><option value="">Todas las fuentes</option></select>
       </div>
       <div class="card overflow-x-auto">
         <table><thead><tr><th>Nombre</th><th>RUT</th><th>Industria</th><th>Ciudad</th><th>Fuente</th><th>Acciones</th></tr></thead>
@@ -234,7 +234,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
       </div>
       <div class="card p-4 mb-4 flex flex-col md:flex-row gap-3">
         <input type="text" id="buscar-contacto" placeholder="Buscar por nombre, email o cargo..." onkeyup="debounce(loadContactos, 300)()" class="flex-1">
-        <select id="filtro-contacto-fuente" onchange="loadContactos()"><option value="">Todas las fuentes</option></select>
+        <select id="filtro-contacto-fuente" onchange="loadContactos()" style="flex:0 0 220px; width:220px"><option value="">Todas las fuentes</option></select>
       </div>
       <div id="contactos-seleccion-bar" class="mb-4 hidden"></div>
       <div class="card overflow-x-auto">
