@@ -113,24 +113,28 @@ async def importar_apollo_al_crm(contactos: list[dict]) -> dict:
             if empresa_nombre in empresa_cache:
                 empresa_id = empresa_cache[empresa_nombre]
             else:
-                empresa_id = db.crear_empresa({
-                    "nombre": empresa_nombre,
-                    "sitio_web": c.get("empresa_web", ""),
-                    "industria": c.get("empresa_industria", ""),
-                    "tamano": c.get("empresa_tamano", ""),
-                    "ciudad": c.get("empresa_ciudad", ""),
-                    "fuente": "apollo",
-                })
+                dominio = re.sub(r'^https?://(www\.)?', '', c.get("empresa_web", "")).strip('/')
+                empresa_id = dominio and db.empresa_existe_por_dominio(dominio)
+                if not empresa_id:
+                    empresa_id = db.crear_empresa({
+                        "nombre": empresa_nombre,
+                        "sitio_web": c.get("empresa_web", ""),
+                        "industria": c.get("empresa_industria", ""),
+                        "tamano": c.get("empresa_tamano", ""),
+                        "ciudad": c.get("empresa_ciudad", ""),
+                        "fuente": "apollo",
+                    })
+                    empresas_creadas += 1
                 empresa_cache[empresa_nombre] = empresa_id
-                empresas_creadas += 1
 
-        if c.get("nombre"):
+        email = (c.get("email") or "").strip()
+        if c.get("nombre") and not (email and db.contacto_existe(email=email)):
             db.crear_contacto({
                 "empresa_id": empresa_id,
                 "nombre": c["nombre"],
                 "apellido": c.get("apellido", ""),
                 "cargo": c.get("cargo", ""),
-                "email": c.get("email", ""),
+                "email": email,
                 "telefono": c.get("telefono", ""),
                 "linkedin_url": c.get("linkedin_url", ""),
                 "fuente": "apollo",
@@ -213,27 +217,34 @@ async def buscar_hunter_email(nombre: str, apellido: str, dominio: str) -> dict:
 
 
 async def importar_hunter_al_crm(contactos: list[dict], empresa_nombre: str, dominio: str) -> dict:
-    """Importa contactos de Hunter directamente al CRM."""
-    empresa_id = db.crear_empresa({
-        "nombre": empresa_nombre,
-        "sitio_web": f"https://{dominio}",
-        "fuente": "hunter",
-    })
+    """Importa contactos de Hunter directamente al CRM. Reusa la empresa por dominio
+    y salta contactos con email ya existente, para no duplicar en reimportaciones."""
+    empresa_id = db.empresa_existe_por_dominio(dominio)
+    if not empresa_id:
+        empresa_id = db.crear_empresa({
+            "nombre": empresa_nombre,
+            "sitio_web": f"https://{dominio}",
+            "fuente": "hunter",
+        })
 
     contactos_creados = 0
     for c in contactos:
-        if c.get("nombre") or c.get("email"):
-            db.crear_contacto({
-                "empresa_id": empresa_id,
-                "nombre": c.get("nombre", ""),
-                "apellido": c.get("apellido", ""),
-                "cargo": c.get("cargo", ""),
-                "email": c.get("email", ""),
-                "telefono": c.get("telefono", ""),
-                "linkedin_url": c.get("linkedin_url", ""),
-                "fuente": "hunter",
-            })
-            contactos_creados += 1
+        email = (c.get("email") or "").strip()
+        if not (c.get("nombre") or email):
+            continue
+        if email and db.contacto_existe(email=email):
+            continue
+        db.crear_contacto({
+            "empresa_id": empresa_id,
+            "nombre": c.get("nombre", ""),
+            "apellido": c.get("apellido", ""),
+            "cargo": c.get("cargo", ""),
+            "email": email,
+            "telefono": c.get("telefono", ""),
+            "linkedin_url": c.get("linkedin_url", ""),
+            "fuente": "hunter",
+        })
+        contactos_creados += 1
 
     _sync_sheets_silencioso()
     return {"empresas_creadas": 1, "contactos_creados": contactos_creados}
@@ -485,13 +496,14 @@ def importar_csv(contenido: bytes, fuente: str = "csv") -> dict:
                 empresas_creadas += 1
 
         nombre = row.get(field_map.get("nombre", ""), "").strip()
-        if nombre:
+        email = row.get(field_map.get("email", ""), "").strip()
+        if nombre and not (email and db.contacto_existe(email=email)):
             db.crear_contacto({
                 "empresa_id": empresa_id,
                 "nombre": nombre,
                 "apellido": row.get(field_map.get("apellido", ""), ""),
                 "cargo": row.get(field_map.get("cargo", ""), ""),
-                "email": row.get(field_map.get("email", ""), ""),
+                "email": email,
                 "telefono": row.get(field_map.get("telefono", ""), ""),
                 "linkedin_url": row.get(field_map.get("linkedin", ""), ""),
                 "fuente": fuente,
