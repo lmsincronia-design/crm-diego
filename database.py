@@ -327,7 +327,7 @@ def crear_contacto(data: dict) -> int:
 
 def listar_contactos(buscar: str = "", empresa_id: int = None, fuente: str = "", calificado: str = "",
                       limit: int = 100, offset: int = 0):
-    base = ("SELECT c.*, e.nombre as empresa_nombre, p.puntaje_ia FROM contactos c "
+    base = ("SELECT c.*, e.nombre as empresa_nombre, p.puntaje_ia, p.razon as razon_ia FROM contactos c "
             "LEFT JOIN empresas e ON c.empresa_id = e.id LEFT JOIN prospectos p ON p.contacto_id = c.id ")
     like = "ILIKE" if USE_PG else "LIKE"
     ph = "%s" if USE_PG else "?"

@@ -18,7 +18,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 EMPRESAS_HEADERS = ["id", "nombre", "rut", "industria", "tamano", "sitio_web",
                      "direccion", "ciudad", "fuente", "notas", "created_at"]
 CONTACTOS_HEADERS = ["id", "empresa_nombre", "nombre", "apellido", "cargo", "email",
-                      "telefono", "linkedin_url", "fuente", "notas", "created_at"]
+                      "telefono", "linkedin_url", "fuente", "puntaje_ia", "razon_ia", "notas", "created_at"]
 EVALUACIONES_HEADERS = ["id", "empresa", "rubro", "nombre", "apellido", "cargo", "email",
                          "puntaje_ia", "razon_ia", "calificado", "created_at"]
 OPORTUNIDADES_HEADERS = ["id", "fuente", "query", "nombre", "organismo", "region", "monto",
