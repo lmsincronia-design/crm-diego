@@ -95,6 +95,10 @@ def delete_contacto(id: int):
     db.eliminar_contacto(id)
     return {"ok": True}
 
+@app.post("/api/contactos/limpiar-duplicados")
+def limpiar_contactos_duplicados():
+    return db.eliminar_contactos_duplicados()
+
 
 # --- PIPELINE ---
 

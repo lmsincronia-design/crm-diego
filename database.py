@@ -509,6 +509,35 @@ def contacto_existe(email: str = "", nombre: str = "", apellido: str = "", empre
     return False
 
 
+def eliminar_contactos_duplicados() -> dict:
+    """Borra contactos con email repetido, quedandose con el mas antiguo (id menor) de
+    cada email. Limpieza puntual para datos que quedaron duplicados antes del fix de
+    deduplicacion en las importaciones manuales (Hunter/Apollo/CSV)."""
+    with get_db() as conn:
+        if USE_PG:
+            cur = conn.cursor()
+            cur.execute("""
+                DELETE FROM contactos WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY email ORDER BY id) AS rn
+                        FROM contactos WHERE email != ''
+                    ) t WHERE t.rn > 1
+                )
+            """)
+            borrados = cur.rowcount
+        else:
+            cur = conn.execute("""
+                DELETE FROM contactos WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (PARTITION BY email ORDER BY id) AS rn
+                        FROM contactos WHERE email != ''
+                    ) WHERE rn > 1
+                )
+            """)
+            borrados = cur.rowcount
+    return {"contactos_borrados": borrados}
+
+
 def empresa_existe_por_dominio(dominio: str) -> int | None:
     like = "ILIKE" if USE_PG else "LIKE"
     ph = "%s" if USE_PG else "?"
